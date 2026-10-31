@@ -1,16 +1,18 @@
 """HTTP API + the chat page. Runs behind Cloudflare Access; the container itself listens on localhost only."""
 from __future__ import annotations
 
+import html
 import json
+from contextlib import AsyncExitStack
 from pathlib import Path
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from . import agent, config, skills, store
-from .pipedrive import Pipedrive
+from . import agent, config, oauth, pipedrive_mcp, skills, store
+from .pipedrive_mcp import PipedriveMCP
 from .tools import Toolbox
 
 STATIC = Path(__file__).parent / "static"
@@ -21,8 +23,18 @@ def make_llm_client() -> httpx.AsyncClient:      # replaced in tests
     return httpx.AsyncClient(timeout=httpx.Timeout(180, connect=15))
 
 
-def make_pipedrive() -> Pipedrive:               # replaced in tests
-    return Pipedrive()
+open_pipedrive_session = pipedrive_mcp.open_session   # replaced in tests
+
+
+def current_user(request: Request) -> str:
+    """The Cloudflare Access email. Without Access in front (local dev) everyone is "local"; production sets
+    REQUIRE_ACCESS_EMAIL=true so a request that didn't come through Access is refused."""
+    email = (request.headers.get("cf-access-authenticated-user-email") or "").strip().lower()
+    if email:
+        return email
+    if config.REQUIRE_ACCESS_EMAIL:
+        raise HTTPException(401, "sign in through Cloudflare Access")
+    return "local"
 
 
 class NewConversation(BaseModel):
@@ -35,7 +47,7 @@ class NewMessage(BaseModel):
 
 
 @app.get("/")
-def index() -> FileResponse:
+def index(user: str = Depends(current_user)) -> FileResponse:
     return FileResponse(STATIC / "index.html")
 
 
@@ -45,42 +57,72 @@ def health() -> dict:
 
 
 @app.get("/api/config")
-def get_config(request: Request) -> dict:
+def get_config(user: str = Depends(current_user)) -> dict:
     s = skills.discover()
-    return {"models": config.MODELS, "default_model": config.DEFAULT_MODEL,
-            "deepseek_configured": bool(config.DEEPSEEK_API_KEY), "pipedrive_configured": bool(config.PIPEDRIVE_API_TOKEN),
+    return {"models": config.MODELS, "default_model": config.DEFAULT_MODEL, "deepseek_configured": bool(config.DEEPSEEK_API_KEY),
+            "pipedrive": {"available": oauth.available(), "connected": oauth.connected(user)},
             "skills": [{"name": x.name, "description": x.description, "always_loaded": x.name in config.ALWAYS_LOADED_SKILLS}
                        for x in s.values()],
-            "user": request.headers.get("cf-access-authenticated-user-email")}
+            "user": user}
 
 
+# ---- Connect Pipedrive (per user, OAuth via the Pipedrive MCP server) ----
+@app.get("/oauth/pipedrive/start")
+async def pipedrive_start(user: str = Depends(current_user)):
+    if not oauth.available():
+        raise HTTPException(503, "Pipedrive connection isn't set up on this server (BASE_URL and SECRET_KEY)")
+    try:
+        return RedirectResponse(await oauth.start(user), status_code=302)
+    except (oauth.OAuthError, httpx.HTTPError) as e:
+        return _page("Couldn't start the Pipedrive sign-in", str(e))
+
+
+@app.get("/oauth/callback")
+async def pipedrive_callback(request: Request, user: str = Depends(current_user)):
+    q = request.query_params
+    if q.get("error"):
+        return _page("Pipedrive wasn't connected", q.get("error_description") or q["error"])
+    try:
+        await oauth.finish(user, q.get("code", ""), q.get("state", ""))
+    except (oauth.OAuthError, httpx.HTTPError) as e:
+        return _page("Pipedrive wasn't connected", str(e))
+    return RedirectResponse("/?pipedrive=connected", status_code=302)
+
+
+@app.post("/api/pipedrive/disconnect")
+def pipedrive_disconnect(user: str = Depends(current_user)) -> dict:
+    oauth.disconnect(user)
+    return {"ok": True}
+
+
+# ---- conversations ----
 @app.get("/api/conversations")
-def conversations() -> list[dict]:
-    return store.list_conversations()
+def conversations(user: str = Depends(current_user)) -> list[dict]:
+    return store.list_conversations(user)
 
 
 @app.post("/api/conversations")
-def create_conversation(body: NewConversation) -> dict:
-    return store.new_conversation(_model(body.model))
+def create_conversation(body: NewConversation, user: str = Depends(current_user)) -> dict:
+    return store.new_conversation(_model(body.model), user)
 
 
 @app.get("/api/conversations/{conv_id}")
-def conversation(conv_id: str) -> dict:
-    conv = store.get_conversation(conv_id)
+def conversation(conv_id: str, user: str = Depends(current_user)) -> dict:
+    conv = store.get_conversation(conv_id, user)
     if not conv:
         raise HTTPException(404, "conversation not found")
     return conv
 
 
 @app.delete("/api/conversations/{conv_id}")
-def remove_conversation(conv_id: str) -> dict:
-    store.delete_conversation(conv_id)
+def remove_conversation(conv_id: str, user: str = Depends(current_user)) -> dict:
+    store.delete_conversation(conv_id, user)
     return {"ok": True}
 
 
 @app.post("/api/conversations/{conv_id}/messages")
-async def send(conv_id: str, body: NewMessage, request: Request) -> StreamingResponse:
-    conv = store.get_conversation(conv_id)
+async def send(conv_id: str, body: NewMessage, user: str = Depends(current_user)) -> StreamingResponse:
+    conv = store.get_conversation(conv_id, user)
     if not conv:
         raise HTTPException(404, "conversation not found")
     if not config.DEEPSEEK_API_KEY:
@@ -88,37 +130,53 @@ async def send(conv_id: str, body: NewMessage, request: Request) -> StreamingRes
     model = _model(body.model or conv["model"])
     user_msg = {"role": "user", "content": body.text}
     store.append_messages(conv_id, [user_msg], title=body.text.strip().splitlines()[0], model=model)
-    user_email = request.headers.get("cf-access-authenticated-user-email")
 
     async def events():
         new: list[dict] = []
         done, error = None, None
-        pd = make_pipedrive()
         try:
-            async with make_llm_client() as client:
-                toolbox = Toolbox(skills.discover(), pd)
-                async for ev in agent.run_turn(client, toolbox, model, [*conv["messages"], user_msg], new):
+            async with AsyncExitStack() as stack:
+                pipedrive = None
+                token = await oauth.access_token(user)
+                if token:
+                    try:
+                        session = await stack.enter_async_context(open_pipedrive_session(token))
+                        pipedrive = await PipedriveMCP.create(session)
+                        yield _sse({"type": "pipedrive", "tools": sorted(pipedrive.read_tools), "blocked": pipedrive.blocked})
+                    except Exception as e:  # noqa: BLE001 - answer without CRM data rather than not at all
+                        yield _sse({"type": "warning", "message": f"Pipedrive unavailable ({type(e).__name__}: {e}); answering without CRM data."})
+                client = await stack.enter_async_context(make_llm_client())
+                async for ev in agent.run_turn(client, Toolbox(skills.discover(), pipedrive), model, [*conv["messages"], user_msg], new):
                     if ev["type"] == "done":
                         done = ev
                     elif ev["type"] == "error":
                         error = ev["message"]
-                    yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
+                    yield _sse(ev)
         except Exception as e:  # noqa: BLE001 - report to the browser, keep what was produced
             error = f"{type(e).__name__}: {e}"
-            yield f"data: {json.dumps({'type': 'error', 'message': error})}\n\n"
+            yield _sse({"type": "error", "message": error})
         finally:
-            await pd.aclose()
             # Only keep complete exchanges, so the next request never sends DeepSeek a dangling tool call.
             store.append_messages(conv_id, _complete(new))
-            store.add_run(conv_id, body.text, done, error, user_email)
+            store.add_run(conv_id, body.text, done, error, user)
 
     return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @app.get("/api/runs.csv")
-def runs_csv() -> PlainTextResponse:
-    return PlainTextResponse(store.runs_csv(), media_type="text/csv",
+def runs_csv(user: str = Depends(current_user)) -> PlainTextResponse:
+    return PlainTextResponse(store.runs_csv(user), media_type="text/csv",
                              headers={"Content-Disposition": "attachment; filename=deepseek-runs.csv"})
+
+
+def _sse(ev: dict) -> str:
+    return f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
+
+
+def _page(title: str, detail: str) -> HTMLResponse:
+    return HTMLResponse(f"<!doctype html><meta charset=utf-8><title>{html.escape(title)}</title>"
+                        f"<body style='font:16px system-ui;max-width:560px;margin:15vh auto;padding:0 16px'>"
+                        f"<h2>{html.escape(title)}</h2><p>{html.escape(detail)}</p><p><a href='/'>Back to the app</a></p>", status_code=400)
 
 
 def _model(name: str | None) -> str:
@@ -128,7 +186,7 @@ def _model(name: str | None) -> str:
 
 
 def _complete(msgs: list[dict]) -> list[dict]:
-    """Drop a trailing assistant tool-call message whose tool results never arrived (an aborted turn)."""
+    """Drop the last tool-calling assistant message (and anything after it) if not all its tool results arrived."""
     out = list(msgs)
     while True:
         idx = max((i for i, m in enumerate(out) if m["role"] == "assistant" and m.get("tool_calls")), default=None)

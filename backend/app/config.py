@@ -12,8 +12,19 @@ DEEPSEEK_BASE_URL = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.co
 MODELS = [m.strip() for m in os.environ.get("DEEPSEEK_MODELS", "deepseek-flash,deepseek-v4-pro").split(",") if m.strip()]
 DEFAULT_MODEL = os.environ.get("DEEPSEEK_MODEL", MODELS[0] if MODELS else "deepseek-flash")
 
-PIPEDRIVE_API_TOKEN = os.environ.get("PIPEDRIVE_API_TOKEN", "")
-PIPEDRIVE_BASE_URL = os.environ.get("PIPEDRIVE_BASE_URL", "https://api.pipedrive.com").rstrip("/")
+# Pipedrive via its official MCP server; each user connects their own account (OAuth). No API key.
+PIPEDRIVE_MCP_URL = os.environ.get("PIPEDRIVE_MCP_URL", "https://mcp.pipedrive.ai/mcp")
+PIPEDRIVE_MCP_CLIENT_ID = os.environ.get("PIPEDRIVE_MCP_CLIENT_ID", "")          # only if dynamic registration isn't offered
+PIPEDRIVE_MCP_CLIENT_SECRET = os.environ.get("PIPEDRIVE_MCP_CLIENT_SECRET", "")
+# The fewest permissions that let it read deals, people, organizations and activities. Pipedrive's MCP server has no
+# read-only scope for those (only "*:full"), so read-only is enforced by the tool filter in pipedrive_mcp.py; this list
+# just keeps admin, mail and mail-sending out of reach.
+PIPEDRIVE_MCP_SCOPES = os.environ.get("PIPEDRIVE_MCP_SCOPES", "base deals:full contacts:full activities:full search:read users:read").split()
+BASE_URL = os.environ.get("BASE_URL", "").rstrip("/")                            # e.g. https://crm.yethu-aung.dev
+SECRET_KEY = os.environ.get("SECRET_KEY", "")                                    # encrypts stored Pipedrive tokens
+
+# Who is asking: Cloudflare Access sets this header. In production a request without it is refused.
+REQUIRE_ACCESS_EMAIL = os.environ.get("REQUIRE_ACCESS_EMAIL", "false").lower() == "true"
 
 SKILL_DIRS = [ROOT / p for p in os.environ.get("SKILL_DIRS", "skills/komosion-skills:skills-local").split(":") if p]
 ALWAYS_LOADED_SKILLS = [s for s in os.environ.get("ALWAYS_LOADED_SKILLS", "evidence-discipline").split(",") if s]

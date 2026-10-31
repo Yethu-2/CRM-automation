@@ -13,7 +13,11 @@ from typing import Any
 from . import config
 
 SCHEMA = """
-CREATE TABLE IF NOT EXISTS conversations (id TEXT PRIMARY KEY, title TEXT, model TEXT, created_at REAL);
+CREATE TABLE IF NOT EXISTS conversations (id TEXT PRIMARY KEY, title TEXT, model TEXT, created_at REAL, user TEXT);
+CREATE TABLE IF NOT EXISTS oauth_clients (issuer TEXT, redirect_uri TEXT, client_id TEXT, client_secret TEXT,
+  PRIMARY KEY (issuer, redirect_uri));
+CREATE TABLE IF NOT EXISTS oauth_states (state TEXT PRIMARY KEY, user TEXT, verifier TEXT, created_at REAL);
+CREATE TABLE IF NOT EXISTS oauth_tokens (user TEXT PRIMARY KEY, data BLOB, updated_at REAL);
 CREATE TABLE IF NOT EXISTS messages (conv_id TEXT, ix INTEGER, message TEXT, PRIMARY KEY (conv_id, ix));
 CREATE TABLE IF NOT EXISTS runs (id INTEGER PRIMARY KEY AUTOINCREMENT, conv_id TEXT, created_at REAL, model TEXT,
   question TEXT, latency_ms INTEGER, prompt_tokens INTEGER, cache_hit_tokens INTEGER, completion_tokens INTEGER,
@@ -34,21 +38,22 @@ def connect():
         c.close()
 
 
-def new_conversation(model: str) -> dict:
-    conv = {"id": uuid.uuid4().hex[:12], "title": "New chat", "model": model, "created_at": time.time()}
+def new_conversation(model: str, user: str) -> dict:
+    conv = {"id": uuid.uuid4().hex[:12], "title": "New chat", "model": model, "created_at": time.time(), "user": user}
     with connect() as c:
-        c.execute("INSERT INTO conversations VALUES (:id, :title, :model, :created_at)", conv)
+        c.execute("INSERT INTO conversations VALUES (:id, :title, :model, :created_at, :user)", conv)
     return conv
 
 
-def list_conversations() -> list[dict]:
+def list_conversations(user: str) -> list[dict]:
     with connect() as c:
-        return [dict(r) for r in c.execute("SELECT * FROM conversations ORDER BY created_at DESC LIMIT 200")]
+        return [dict(r) for r in c.execute("SELECT * FROM conversations WHERE user = ? ORDER BY created_at DESC LIMIT 200", (user,))]
 
 
-def get_conversation(conv_id: str) -> dict | None:
+def get_conversation(conv_id: str, user: str) -> dict | None:
+    """Only the owner's: conversations hold CRM data the asker was allowed to see, not necessarily anyone else."""
     with connect() as c:
-        row = c.execute("SELECT * FROM conversations WHERE id = ?", (conv_id,)).fetchone()
+        row = c.execute("SELECT * FROM conversations WHERE id = ? AND user = ?", (conv_id, user)).fetchone()
         if not row:
             return None
         msgs = [json.loads(r[0]) for r in c.execute("SELECT message FROM messages WHERE conv_id = ? ORDER BY ix", (conv_id,))]
@@ -56,8 +61,10 @@ def get_conversation(conv_id: str) -> dict | None:
     return {**dict(row), "messages": msgs, "runs": runs}
 
 
-def delete_conversation(conv_id: str) -> None:
+def delete_conversation(conv_id: str, user: str) -> None:
     with connect() as c:
+        if not c.execute("SELECT 1 FROM conversations WHERE id = ? AND user = ?", (conv_id, user)).fetchone():
+            return
         for t, col in (("messages", "conv_id"), ("runs", "conv_id"), ("conversations", "id")):
             c.execute(f"DELETE FROM {t} WHERE {col} = ?", (conv_id,))
 
@@ -96,13 +103,55 @@ CSV_FIELDS = ["id", "created_at", "conv_id", "model", "question", "latency_ms", 
               "completion_tokens", "cost_usd", "tool_calls", "skills_loaded", "error", "user_email"]
 
 
-def runs_csv() -> str:
+def runs_csv(user: str) -> str:
     out = io.StringIO()
     w = csv.DictWriter(out, fieldnames=CSV_FIELDS, extrasaction="ignore")
     w.writeheader()
     with connect() as c:
-        for r in c.execute("SELECT * FROM runs ORDER BY id"):
+        for r in c.execute("SELECT * FROM runs WHERE conv_id IN (SELECT id FROM conversations WHERE user = ?) ORDER BY id", (user,)):
             row = dict(r)
             row["created_at"] = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(row["created_at"]))
             w.writerow(row)
     return out.getvalue()
+
+
+# ---- OAuth (Pipedrive MCP) ----
+def get_oauth_client(issuer: str, redirect_uri: str) -> dict | None:
+    with connect() as c:
+        r = c.execute("SELECT client_id, client_secret FROM oauth_clients WHERE issuer = ? AND redirect_uri = ?", (issuer, redirect_uri)).fetchone()
+    return dict(r) if r else None
+
+
+def save_oauth_client(issuer: str, redirect_uri: str, reg: dict) -> None:
+    with connect() as c:
+        c.execute("INSERT OR REPLACE INTO oauth_clients VALUES (?, ?, ?, ?)", (issuer, redirect_uri, reg["client_id"], reg.get("client_secret")))
+
+
+def save_oauth_state(state: str, user: str, verifier: str, created_at: float) -> None:
+    with connect() as c:
+        c.execute("DELETE FROM oauth_states WHERE created_at < ?", (created_at - 3600,))
+        c.execute("INSERT INTO oauth_states VALUES (?, ?, ?, ?)", (state, user, verifier, created_at))
+
+
+def pop_oauth_state(state: str) -> dict | None:
+    """One use only: the state is deleted as it's read."""
+    with connect() as c:
+        r = c.execute("SELECT user, verifier, created_at FROM oauth_states WHERE state = ?", (state,)).fetchone()
+        c.execute("DELETE FROM oauth_states WHERE state = ?", (state,))
+    return dict(r) if r else None
+
+
+def get_oauth_token(user: str) -> bytes | None:
+    with connect() as c:
+        r = c.execute("SELECT data FROM oauth_tokens WHERE user = ?", (user,)).fetchone()
+    return r[0] if r else None
+
+
+def save_oauth_token(user: str, blob: bytes) -> None:
+    with connect() as c:
+        c.execute("INSERT OR REPLACE INTO oauth_tokens VALUES (?, ?, ?)", (user, blob, time.time()))
+
+
+def delete_oauth_token(user: str) -> None:
+    with connect() as c:
+        c.execute("DELETE FROM oauth_tokens WHERE user = ?", (user,))

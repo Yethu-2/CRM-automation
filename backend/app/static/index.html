@@ -26,6 +26,8 @@ button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid v
 button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
 .conv { text-align: left; border: 0; background: transparent; padding: 7px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
 .conv.active, .conv:hover { background: var(--user); }
+.pd { font-size: 13px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 4px; display: grid; gap: 6px; }
+.pd button { font-size: 13px; padding: 5px 8px; }
 .foot { margin-top: auto; font-size: 12px; color: var(--muted); display: grid; gap: 4px; padding: 6px; }
 .foot a { color: var(--muted); }
 main { display: flex; flex-direction: column; min-width: 0; }
@@ -69,6 +71,7 @@ details.step pre { margin: 6px 0 0; max-height: 260px; }
 <div class="app">
   <aside>
     <div class="brand">Komosion CRM<small>on DeepSeek · read-only Pipedrive</small></div>
+    <div id="pd" class="pd"></div>
     <button class="primary" id="new">+ New chat</button>
     <div id="convs"></div>
     <div class="foot">
@@ -111,13 +114,26 @@ const EXAMPLES = [
 async function init() {
   cfg = await api("api/config");
   $("#model").innerHTML = cfg.models.map(m => `<option>${esc(m)}</option>`).join("");
-  $("#status").innerHTML = [cfg.deepseek_configured ? "" : `<span class="bad">DeepSeek key missing</span>`,
-    cfg.pipedrive_configured ? `<span class="ok">● Pipedrive connected</span>` : `<span class="bad">● Pipedrive not configured</span>`,
-    `${cfg.skills.length} skills`].filter(Boolean).join(" · ");
+  $("#status").innerHTML = [cfg.deepseek_configured ? "" : `<span class="bad">DeepSeek key missing</span>`, `${cfg.skills.length} skills`].filter(Boolean).join(" · ");
+  renderPipedrive();
+  if (new URLSearchParams(location.search).get("pipedrive") === "connected") history.replaceState(null, "", location.pathname);
   $("#who").textContent = cfg.user || "";
   await loadConvs();
   const last = (await api("api/conversations"))[0];
   last ? openConv(last.id) : renderEmpty();
+}
+
+function renderPipedrive() {
+  const p = cfg.pipedrive, el = $("#pd");
+  if (!p.available) { el.innerHTML = `<span class="muted">Pipedrive connection isn't set up on this server yet.</span>`; return; }
+  if (p.connected) {
+    el.innerHTML = `<span class="ok">● Pipedrive connected</span><span class="muted">Your own account, read-only.</span><button id="pdOff">Disconnect</button>`;
+    $("#pdOff").onclick = async () => { if (!confirm("Disconnect your Pipedrive account from this app?")) return;
+      await api("api/pipedrive/disconnect", {method: "POST"}); cfg.pipedrive.connected = false; renderPipedrive(); };
+  } else {
+    el.innerHTML = `<span class="bad">● Pipedrive not connected</span><span class="muted">Sign in with your Komosion Pipedrive account. The app only reads.</span><button class="primary" id="pdOn">Connect Pipedrive</button>`;
+    $("#pdOn").onclick = () => { location.href = "oauth/pipedrive/start"; };
+  }
 }
 
 async function loadConvs() {
@@ -129,7 +145,7 @@ async function loadConvs() {
 function renderEmpty() {
   conv = null; $("#title").textContent = "New chat"; $("#model").value = cfg.default_model;
   $("#thread").innerHTML = `<div class="empty"><h2>Ask DeepSeek about the CRM</h2>
-    <p>It answers from live Pipedrive data (read-only) and Komosion's skills, and shows its working in the trace panel.</p>
+    <p>It answers from your own Pipedrive account (read-only) and Komosion's skills, and shows its working in the trace panel.${cfg.pipedrive.connected ? "" : " Connect Pipedrive in the sidebar to give it CRM data."}</p>
     <ul>${EXAMPLES.map(e => `<li>${esc(e)}</li>`).join("")}</ul></div>`;
   document.querySelectorAll(".empty li").forEach(li => li.onclick = () => { $("#input").value = li.textContent; $("#input").focus(); });
   $("#trace").innerHTML = `<p class="muted">Each answer's trace appears here.</p>`; loadConvs();
@@ -177,6 +193,8 @@ function showTrace(run, turn) {
     <h3>Model</h3><div>${esc(run.model || "")}</div>
     <h3>Skills loaded (${(run.skills_loaded || []).length})</h3>
     <div class="chips">${(run.skills_loaded || []).map(s => `<span class="chip">${esc(s)}</span>`).join("") || `<span class="muted">none, beyond the always-loaded ${esc(cfg.skills.filter(s => s.always_loaded).map(s => s.name).join(", "))}</span>`}</div>
+    ${run.pipedrive ? `<h3>Pipedrive tools offered (${run.pipedrive.tools.length})</h3><div class="muted">${esc(run.pipedrive.tools.map(t => t.replace("pipedrive__", "")).join(", "))}</div>
+      ${run.pipedrive.blocked.length ? `<div class="muted" style="margin-top:4px">Blocked as writes: ${esc(run.pipedrive.blocked.join(", "))}</div>` : ""}` : ""}
     <h3>Tool calls (${steps.length})</h3>${steps.map(stepHTML).join("") || `<span class="muted">none</span>`}
     ${run.error ? `<h3>Error</h3><div class="bad">${esc(run.error)}</div>` : ""}`;
 }
@@ -203,12 +221,14 @@ async function send(text) {
         const ev = JSON.parse(line.slice(5));
         if (ev.type === "text") { answer += ev.text; bubble.innerHTML = md(answer); }
         else if (ev.type === "thinking") { thinking += ev.text; if (!answer) bubble.innerHTML = `<div class="thinking">${esc(thinking.slice(-1500))}</div>`; }
-        else if (ev.type === "tool_start") { chips.insertAdjacentHTML("beforeend", `<span class="chip ${ev.name === "load_skill" ? "" : "tool"}" data-id="${esc(ev.id)}">${esc(ev.name === "load_skill" ? "skill: " + shortArgs(ev) : ev.name.replace("pipedrive_", "Pipedrive: "))} …</span>`);
+        else if (ev.type === "tool_start") { chips.insertAdjacentHTML("beforeend", `<span class="chip ${ev.name === "load_skill" ? "" : "tool"}" data-id="${esc(ev.id)}">${esc(ev.name === "load_skill" ? "skill: " + shortArgs(ev) : ev.name.replace("pipedrive__", "Pipedrive: "))} …</span>`);
           live.trace.push(ev); showTrace(live, turn); }
         else if (ev.type === "tool_end") { const c = chips.querySelector(`[data-id="${CSS.escape(ev.id)}"]`); if (c) { c.textContent = c.textContent.replace(" …", ""); if (!ev.ok) c.classList.add("bad"); }
           live.trace[live.trace.findIndex(s => s.id === ev.id)] = ev; showTrace(live, turn); }
+        else if (ev.type === "pipedrive") { live.pipedrive = ev; }
+        else if (ev.type === "warning") { bubble.insertAdjacentHTML("beforebegin", `<div class="notice">${esc(ev.message)}</div>`); }
         else if (ev.type === "error") { bubble.insertAdjacentHTML("beforeend", `<div class="notice">${esc(ev.message)}</div>`); }
-        else if (ev.type === "done") { live = {...ev, trace: ev.tools}; conv.runs.push(live); showTrace(live, turn); }
+        else if (ev.type === "done") { live = {...ev, trace: ev.tools, pipedrive: live.pipedrive}; conv.runs.push(live); showTrace(live, turn); }
       }
       $("#thread").scrollTop = $("#thread").scrollHeight;
     }
