@@ -25,7 +25,9 @@ def b64(s: str) -> str:
 class FakeGoogleAuth:
     def __init__(self):
         self.challenges, self.revoked, self.issued = {}, [], 0
-        self.scope = " ".join(RO)
+        # exactly what Google sends back: "email" comes back as userinfo.email, in its own order
+        self.scope = ("https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/userinfo.email openid "
+                      "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/gmail.readonly")
         self.refresh_ok = True
 
     def authorize(self, q):
@@ -90,10 +92,14 @@ def test_connect_stores_encrypted_tokens_and_the_account(g):
 
 
 def test_unticked_or_wider_scopes_are_refused(g):
-    g.scope = " ".join(RO[:-1])          # calendar unticked on the consent screen
+    full = g.scope
+    g.scope = full.replace("https://www.googleapis.com/auth/calendar.readonly ", "")   # calendar unticked on the consent screen
     with pytest.raises(oauth.OAuthError, match="calendar.readonly"):
         connect(g)
-    g.scope = " ".join([*RO, "https://www.googleapis.com/auth/gmail.send"])
+    g.scope = full + " https://www.googleapis.com/auth/gmail.send"
+    with pytest.raises(oauth.OAuthError, match="more access than read-only"):
+        connect(g)
+    g.scope = full + " https://www.googleapis.com/auth/drive"                       # full Drive is not read-only either
     with pytest.raises(oauth.OAuthError, match="more access than read-only"):
         connect(g)
     assert not google_oauth.status("yethu@komosion.com")["connected"]

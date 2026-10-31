@@ -17,6 +17,8 @@ from . import config, oauth, store
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 REVOKE_URL = "https://oauth2.googleapis.com/revoke"
+# Google reports "email" back under its full name; it identifies the account and grants no data access.
+IDENTITY_SCOPES = {"openid", "email", "https://www.googleapis.com/auth/userinfo.email"}
 SCOPES = ["openid", "email",
           "https://www.googleapis.com/auth/gmail.readonly",
           "https://www.googleapis.com/auth/drive.readonly",
@@ -61,7 +63,7 @@ async def finish(user: str, code: str, state: str) -> None:
     missing = [s.rsplit("/", 1)[-1] for s in SCOPES[2:] if s not in granted]
     if missing:   # Google lets people untick scopes on the consent screen
         raise oauth.OAuthError(f"read access wasn't granted for: {', '.join(missing)}. Connect again and leave those boxes ticked.")
-    if any(s for s in granted if s.startswith("https://www.googleapis.com/auth/") and s not in SCOPES):
+    if granted - set(SCOPES) - IDENTITY_SCOPES:
         # never hold a token that could write, whatever Google returns
         raise oauth.OAuthError("Google returned more access than read-only; remove this app at myaccount.google.com/permissions and connect again")
     _save(user, tok, account=_email_from_id_token(tok.get("id_token")))
