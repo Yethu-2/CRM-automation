@@ -64,7 +64,18 @@ details.step pre { margin: 6px 0 0; max-height: 260px; }
 .ok { color: var(--ok); } .bad { color: var(--bad); } .muted { color: var(--muted); }
 .thinking { color: var(--muted); font-size: 13px; white-space: pre-wrap; max-height: 200px; overflow: auto; border-left: 2px solid var(--line); padding-left: 8px; }
 @media (max-width: 1100px) { .app { grid-template-columns: 200px 1fr; } .trace { display: none; } .trace.open { display: block; position: fixed; inset: 0 0 0 auto; width: min(380px, 92vw); z-index: 5; } }
-@media (max-width: 700px) { .app { grid-template-columns: 1fr; } aside { display: none; } .msg { padding: 0 16px; } }
+.menu { display: none; }
+.scrim { display: none; position: fixed; inset: 0; background: rgb(0 0 0 / .35); z-index: 4; }
+.scrim.open { display: block; }
+@media (max-width: 1100px) { .trace.open { box-shadow: -8px 0 24px rgb(0 0 0 / .18); } }
+@media (max-width: 700px) {
+  .app { grid-template-columns: 1fr; }
+  aside { display: none; }
+  aside.open { display: flex; position: fixed; inset: 0 auto 0 0; width: min(300px, 86vw); z-index: 6; box-shadow: 8px 0 24px rgb(0 0 0 / .18); }
+  .menu { display: inline-block; }
+  .bar { padding: 8px 12px; } .bar select { max-width: 40vw; }
+  .msg { padding: 0 16px; } .composer { padding: 8px 12px 14px; }
+}
 </style>
 </head>
 <body>
@@ -83,6 +94,7 @@ details.step pre { margin: 6px 0 0; max-height: 260px; }
   </aside>
   <main>
     <div class="bar">
+      <button class="menu" id="menu" aria-label="Menu">☰</button>
       <div class="title" id="title">New chat</div>
       <select id="model" title="Model for this chat"></select>
       <button id="toggleTrace" title="Show the trace">Trace</button>
@@ -95,6 +107,7 @@ details.step pre { margin: 6px 0 0; max-height: 260px; }
       </form>
     </div>
   </main>
+  <div class="scrim" id="scrim"></div>
   <section class="trace" id="trace"><p class="muted">Each answer's trace appears here: the skills DeepSeek chose to load, every Pipedrive call it made, tokens, cost and time. Click an answer to see its trace.</p></section>
 </div>
 <script>
@@ -258,8 +271,12 @@ $("#form").onsubmit = e => { e.preventDefault(); const t = $("#input").value; $(
 $("#input").onkeydown = e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#form").requestSubmit(); } };
 const autosize = () => { const t = $("#input"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 220) + "px"; };
 $("#input").oninput = autosize;
-$("#new").onclick = renderEmpty;
-$("#toggleTrace").onclick = () => $("#trace").classList.toggle("open");
+const closePanels = () => ["aside", "#trace", "#scrim"].forEach(sel => $(sel).classList.remove("open"));
+$("#new").onclick = () => { closePanels(); renderEmpty(); };
+$("#menu").onclick = () => { $("aside").classList.add("open"); $("#scrim").classList.add("open"); };
+$("#toggleTrace").onclick = () => { const open = $("#trace").classList.toggle("open"); $("#scrim").classList.toggle("open", open && innerWidth <= 1100); };
+$("#scrim").onclick = closePanels;
+$("#convs").addEventListener("click", e => { if (e.target.closest(".conv")) closePanels(); });
 init().catch(e => { $("#thread").innerHTML = `<div class="notice">${esc(e.message)}</div>`; });
 </script>
 </body>
