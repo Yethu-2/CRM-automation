@@ -1,0 +1,11 @@
+services:
+  app:
+    build: .
+    container_name: crm-deepseek
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8770:8000"   # localhost only: reached through Cloudflare Tunnel + Access
+    volumes:
+      - ./data:/app/data
+    mem_limit: 512m

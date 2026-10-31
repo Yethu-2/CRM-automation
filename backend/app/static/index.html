@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Komosion CRM · DeepSeek</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<style>
+:root {
+  --bg: #f7f6f3; --panel: #ffffff; --ink: #1f1e1c; --muted: #6b6862; --line: #e4e1da;
+  --accent: #b5532f; --accent-soft: #f6e7df; --user: #efece6; --ok: #2f7d4f; --bad: #b3261e; --code: #f1efea;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #1b1a18; --panel: #232220; --ink: #ecebe7; --muted: #a29f98; --line: #34322e;
+  --accent: #e0835c; --accent-soft: #3a2a22; --user: #2d2b28; --ok: #6cc28f; --bad: #f08a80; --code: #2b2926; } }
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+.app { display: grid; grid-template-columns: 250px 1fr 360px; height: 100vh; }
+aside, .trace { background: var(--panel); border-right: 1px solid var(--line); overflow: auto; }
+.trace { border-right: 0; border-left: 1px solid var(--line); padding: 14px 16px; font-size: 13px; }
+aside { padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+.brand { font-weight: 650; padding: 4px 6px 10px; } .brand small { display: block; font-weight: 400; color: var(--muted); }
+button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 7px 10px; }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.conv { text-align: left; border: 0; background: transparent; padding: 7px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
+.conv.active, .conv:hover { background: var(--user); }
+.foot { margin-top: auto; font-size: 12px; color: var(--muted); display: grid; gap: 4px; padding: 6px; }
+.foot a { color: var(--muted); }
+main { display: flex; flex-direction: column; min-width: 0; }
+.bar { display: flex; gap: 8px; align-items: center; padding: 10px 18px; border-bottom: 1px solid var(--line); }
+.bar .title { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+select { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+.thread { flex: 1; overflow: auto; padding: 24px 0; }
+.msg { max-width: 760px; margin: 0 auto 18px; padding: 0 22px; }
+.msg.user .bubble { background: var(--user); border-radius: 14px; padding: 10px 14px; display: inline-block; white-space: pre-wrap; }
+.msg.user { text-align: right; } .msg.user .bubble { text-align: left; }
+.msg.assistant .bubble { cursor: pointer; border-left: 3px solid transparent; padding-left: 10px; margin-left: -13px; }
+.msg.assistant.selected .bubble { border-left-color: var(--accent); }
+.bubble p:first-child { margin-top: 0; } .bubble p:last-child { margin-bottom: 0; }
+.bubble table { border-collapse: collapse; margin: 8px 0; font-size: 14px; } .bubble td, .bubble th { border: 1px solid var(--line); padding: 4px 8px; vertical-align: top; }
+pre, code { background: var(--code); border-radius: 6px; font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
+pre { padding: 10px; overflow: auto; white-space: pre-wrap; word-break: break-word; } code { padding: 1px 4px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.chip { font-size: 12px; border-radius: 999px; padding: 2px 9px; background: var(--accent-soft); color: var(--accent); }
+.chip.tool { background: var(--user); color: var(--muted); }
+.chip.bad { color: var(--bad); }
+.composer { padding: 12px 18px 18px; } .composer form { max-width: 760px; margin: 0 auto; display: flex; gap: 8px; align-items: flex-end; }
+textarea { flex: 1; font: inherit; resize: none; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--panel); color: var(--ink); min-height: 46px; max-height: 220px; }
+.empty { color: var(--muted); max-width: 760px; margin: 12vh auto 0; padding: 0 22px; }
+.empty h2 { color: var(--ink); font-weight: 600; } .empty li { margin: 4px 0; cursor: pointer; } .empty li:hover { color: var(--accent); }
+.notice { max-width: 760px; margin: 0 auto 14px; padding: 8px 12px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); font-size: 13px; }
+.trace h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 16px 0 6px; }
+.trace h3:first-child { margin-top: 0; }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.stat { background: var(--bg); border-radius: 8px; padding: 6px 8px; } .stat b { display: block; font-size: 15px; }
+details.step { border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; margin-bottom: 6px; }
+details.step summary { cursor: pointer; display: flex; gap: 6px; align-items: baseline; }
+details.step summary .ms { margin-left: auto; color: var(--muted); }
+details.step pre { margin: 6px 0 0; max-height: 260px; }
+.ok { color: var(--ok); } .bad { color: var(--bad); } .muted { color: var(--muted); }
+.thinking { color: var(--muted); font-size: 13px; white-space: pre-wrap; max-height: 200px; overflow: auto; border-left: 2px solid var(--line); padding-left: 8px; }
+@media (max-width: 1100px) { .app { grid-template-columns: 200px 1fr; } .trace { display: none; } .trace.open { display: block; position: fixed; inset: 0 0 0 auto; width: min(380px, 92vw); z-index: 5; } }
+@media (max-width: 700px) { .app { grid-template-columns: 1fr; } aside { display: none; } .msg { padding: 0 16px; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="brand">Komosion CRM<small>on DeepSeek · read-only Pipedrive</small></div>
+    <button class="primary" id="new">+ New chat</button>
+    <div id="convs"></div>
+    <div class="foot">
+      <span id="status"></span>
+      <a href="api/runs.csv">Download run log (CSV)</a>
+      <span id="who"></span>
+    </div>
+  </aside>
+  <main>
+    <div class="bar">
+      <div class="title" id="title">New chat</div>
+      <select id="model" title="Model for this chat"></select>
+      <button id="toggleTrace" title="Show the trace">Trace</button>
+    </div>
+    <div class="thread" id="thread"></div>
+    <div class="composer">
+      <form id="form">
+        <textarea id="input" rows="1" placeholder="Ask about a client, deal or opportunity…" autofocus></textarea>
+        <button class="primary" id="send">Send</button>
+      </form>
+    </div>
+  </main>
+  <section class="trace" id="trace"><p class="muted">Each answer's trace appears here: the skills DeepSeek chose to load, every Pipedrive call it made, tokens, cost and time. Click an answer to see its trace.</p></section>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const md = s => (window.marked && window.DOMPurify) ? DOMPurify.sanitize(marked.parse(s || "")) : `<p>${esc(s).replace(/\n/g, "<br>")}</p>`;
+const api = async (path, opts = {}) => { const r = await fetch(path, {headers: {"Content-Type": "application/json"}, ...opts});
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText); return r.json(); };
+let cfg, conv = null, busy = false;
+
+const EXAMPLES = [
+  "What do we know about RMIT University Vietnam in Pipedrive? Separate facts from inferences.",
+  "Assess the Playbill opportunity against Komosion's 12 commercial criteria.",
+  "Which deals look stale or inconsistent (e.g. Won but still in an early stage)?",
+  "Find VTAC and summarise the open deals, recent activities and notes.",
+];
+
+async function init() {
+  cfg = await api("api/config");
+  $("#model").innerHTML = cfg.models.map(m => `<option>${esc(m)}</option>`).join("");
+  $("#status").innerHTML = [cfg.deepseek_configured ? "" : `<span class="bad">DeepSeek key missing</span>`,
+    cfg.pipedrive_configured ? `<span class="ok">● Pipedrive connected</span>` : `<span class="bad">● Pipedrive not configured</span>`,
+    `${cfg.skills.length} skills`].filter(Boolean).join(" · ");
+  $("#who").textContent = cfg.user || "";
+  await loadConvs();
+  const last = (await api("api/conversations"))[0];
+  last ? openConv(last.id) : renderEmpty();
+}
+
+async function loadConvs() {
+  const list = await api("api/conversations");
+  $("#convs").innerHTML = list.map(c => `<button class="conv ${conv && c.id === conv.id ? "active" : ""}" data-id="${c.id}" title="${esc(c.title)}">${esc(c.title)}</button>`).join("");
+  document.querySelectorAll(".conv").forEach(b => b.onclick = () => openConv(b.dataset.id));
+}
+
+function renderEmpty() {
+  conv = null; $("#title").textContent = "New chat"; $("#model").value = cfg.default_model;
+  $("#thread").innerHTML = `<div class="empty"><h2>Ask DeepSeek about the CRM</h2>
+    <p>It answers from live Pipedrive data (read-only) and Komosion's skills, and shows its working in the trace panel.</p>
+    <ul>${EXAMPLES.map(e => `<li>${esc(e)}</li>`).join("")}</ul></div>`;
+  document.querySelectorAll(".empty li").forEach(li => li.onclick = () => { $("#input").value = li.textContent; $("#input").focus(); });
+  $("#trace").innerHTML = `<p class="muted">Each answer's trace appears here.</p>`; loadConvs();
+}
+
+async function openConv(id) {
+  conv = await api(`api/conversations/${id}`);
+  $("#title").textContent = conv.title; $("#model").value = conv.model;
+  const thread = $("#thread"); thread.innerHTML = "";
+  let turn = -1;
+  for (const m of conv.messages) {
+    if (m.role === "user") { turn++; addUser(m.content); }
+    else if (m.role === "assistant" && m.content) addAssistant(turn).querySelector(".bubble").innerHTML = md(m.content);
+  }
+  const runs = conv.runs; if (runs.length) showTrace(runs[runs.length - 1], runs.length - 1);
+  thread.scrollTop = thread.scrollHeight; loadConvs();
+}
+
+function addUser(text) { const d = document.createElement("div"); d.className = "msg user"; d.innerHTML = `<div class="bubble">${esc(text)}</div>`; $("#thread").append(d); return d; }
+function addAssistant(turn) {
+  const d = document.createElement("div"); d.className = "msg assistant"; d.dataset.turn = turn;
+  d.innerHTML = `<div class="chips"></div><div class="bubble"></div>`;
+  d.onclick = () => { const r = conv?.runs?.[turn]; if (r) showTrace(r, turn); };
+  $("#thread").append(d); return d;
+}
+
+function stepHTML(s) {
+  let args = s.arguments; try { args = JSON.stringify(JSON.parse(s.arguments || "{}"), null, 1); } catch {}
+  let res = s.result || ""; try { res = JSON.stringify(JSON.parse(res), null, 1); } catch {}
+  return `<details class="step"><summary><span class="${s.ok === false ? "bad" : "ok"}">${s.ok === false ? "✕" : "✓"}</span>
+    <b>${esc(s.name)}</b><span class="muted">${esc(shortArgs(s))}</span><span class="ms">${s.ms ?? "…"} ms</span></summary>
+    <pre>${esc(args)}</pre>${res ? `<pre>${esc(res)}</pre>` : ""}</details>`;
+}
+function shortArgs(s) { try { const a = JSON.parse(s.arguments || "{}"); return Object.values(a).join(" · ").slice(0, 40); } catch { return ""; } }
+
+function showTrace(run, turn) {
+  document.querySelectorAll(".msg.assistant").forEach(m => m.classList.toggle("selected", +m.dataset.turn === turn));
+  const t = run.prompt_tokens ?? run.usage?.prompt_tokens, hit = run.cache_hit_tokens ?? run.usage?.prompt_cache_hit_tokens,
+        out = run.completion_tokens ?? run.usage?.completion_tokens, steps = run.trace || run.tools || [];
+  $("#trace").innerHTML = `<h3>This answer</h3><div class="stats">
+      <div class="stat"><b>${run.latency_ms != null ? (run.latency_ms / 1000).toFixed(1) + " s" : "—"}</b>time</div>
+      <div class="stat"><b>${run.cost_usd != null ? "$" + run.cost_usd.toFixed(4) : "—"}</b>cost${run.cost_usd == null ? " (set prices.json)" : ""}</div>
+      <div class="stat"><b>${t ?? "—"}</b>input tokens${hit ? ` (${hit} cached)` : ""}</div>
+      <div class="stat"><b>${out ?? "—"}</b>output tokens</div></div>
+    <h3>Model</h3><div>${esc(run.model || "")}</div>
+    <h3>Skills loaded (${(run.skills_loaded || []).length})</h3>
+    <div class="chips">${(run.skills_loaded || []).map(s => `<span class="chip">${esc(s)}</span>`).join("") || `<span class="muted">none, beyond the always-loaded ${esc(cfg.skills.filter(s => s.always_loaded).map(s => s.name).join(", "))}</span>`}</div>
+    <h3>Tool calls (${steps.length})</h3>${steps.map(stepHTML).join("") || `<span class="muted">none</span>`}
+    ${run.error ? `<h3>Error</h3><div class="bad">${esc(run.error)}</div>` : ""}`;
+}
+
+async function send(text) {
+  if (busy || !text.trim()) return;
+  busy = true; $("#send").disabled = true;
+  try {
+    if (!conv) { const c = await api("api/conversations", {method: "POST", body: JSON.stringify({model: $("#model").value})}); conv = {...c, messages: [], runs: []}; $("#thread").innerHTML = ""; }
+    addUser(text);
+    const turn = conv.runs.length, el = addAssistant(turn), bubble = el.querySelector(".bubble"), chips = el.querySelector(".chips");
+    let answer = "", thinking = "", live = {trace: [], skills_loaded: [], model: $("#model").value};
+    bubble.innerHTML = `<span class="muted">Thinking…</span>`;
+    const r = await fetch(`api/conversations/${conv.id}/messages`, {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({text, model: $("#model").value})});
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
+    const reader = r.body.getReader(), dec = new TextDecoder(); let buf = "";
+    for (;;) {
+      const {value, done} = await reader.read(); if (done) break;
+      buf += dec.decode(value, {stream: true});
+      let i; while ((i = buf.indexOf("\n\n")) >= 0) {
+        const line = buf.slice(0, i); buf = buf.slice(i + 2);
+        if (!line.startsWith("data:")) continue;
+        const ev = JSON.parse(line.slice(5));
+        if (ev.type === "text") { answer += ev.text; bubble.innerHTML = md(answer); }
+        else if (ev.type === "thinking") { thinking += ev.text; if (!answer) bubble.innerHTML = `<div class="thinking">${esc(thinking.slice(-1500))}</div>`; }
+        else if (ev.type === "tool_start") { chips.insertAdjacentHTML("beforeend", `<span class="chip ${ev.name === "load_skill" ? "" : "tool"}" data-id="${esc(ev.id)}">${esc(ev.name === "load_skill" ? "skill: " + shortArgs(ev) : ev.name.replace("pipedrive_", "Pipedrive: "))} …</span>`);
+          live.trace.push(ev); showTrace(live, turn); }
+        else if (ev.type === "tool_end") { const c = chips.querySelector(`[data-id="${CSS.escape(ev.id)}"]`); if (c) { c.textContent = c.textContent.replace(" …", ""); if (!ev.ok) c.classList.add("bad"); }
+          live.trace[live.trace.findIndex(s => s.id === ev.id)] = ev; showTrace(live, turn); }
+        else if (ev.type === "error") { bubble.insertAdjacentHTML("beforeend", `<div class="notice">${esc(ev.message)}</div>`); }
+        else if (ev.type === "done") { live = {...ev, trace: ev.tools}; conv.runs.push(live); showTrace(live, turn); }
+      }
+      $("#thread").scrollTop = $("#thread").scrollHeight;
+    }
+    if (!answer && !bubble.querySelector(".notice")) bubble.innerHTML = `<span class="muted">(no answer)</span>`;
+    const fresh = await api(`api/conversations/${conv.id}`); conv.runs = fresh.runs; conv.title = fresh.title; $("#title").textContent = fresh.title;
+    loadConvs();
+  } catch (e) {
+    $("#thread").insertAdjacentHTML("beforeend", `<div class="notice">${esc(e.message)}</div>`);
+  } finally { busy = false; $("#send").disabled = false; }
+}
+
+$("#form").onsubmit = e => { e.preventDefault(); const t = $("#input").value; $("#input").value = ""; autosize(); send(t); };
+$("#input").onkeydown = e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#form").requestSubmit(); } };
+const autosize = () => { const t = $("#input"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 220) + "px"; };
+$("#input").oninput = autosize;
+$("#new").onclick = renderEmpty;
+$("#toggleTrace").onclick = () => $("#trace").classList.toggle("open");
+init().catch(e => { $("#thread").innerHTML = `<div class="notice">${esc(e.message)}</div>`; });
+</script>
+</body>
+</html>

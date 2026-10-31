@@ -1,0 +1,4 @@
+{
+  "_comment": "USD per 1M tokens. Fill in from https://api-docs.deepseek.com/quick_start/pricing; a model with no entry shows tokens but no cost. Keys: input (cache miss), input_cache_hit, output.",
+  "_example": {"input": 0.0, "input_cache_hit": 0.0, "output": 0.0}
+}
