@@ -128,3 +128,16 @@ def test_the_browser_never_receives_a_secret(monkeypatch):
     monkeypatch.setattr(config, "SECRET_KEY", "enc-secret-456")
     body = TestClient(main.app).get("/api/config").text
     assert "secret" not in body
+
+
+def test_deepseek_is_told_the_current_time_without_touching_the_cache_prefix_or_the_stored_chat():
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    hist = [{"role": "user", "content": "first"}, {"role": "assistant", "content": "ok"}, {"role": "user", "content": "What's next?"}]
+    sent = agent.with_now(hist, datetime(2026, 11, 1, 9, 5, tzinfo=ZoneInfo("Asia/Ho_Chi_Minh")))
+    assert sent[-1]["content"] == "[Current date and time: Sunday 01 November 2026, 09:05 (Asia/Ho_Chi_Minh, UTC+07:00)]\nWhat's next?"
+    assert sent[:-1] == hist[:-1] and hist[-1]["content"] == "What's next?"   # earlier turns and the original untouched
+    ds = FakeDeepSeek(text_reply("Monday."))
+    new, _ = collect(ds, [{"role": "user", "content": "What's next?"}], with_pipedrive=False)
+    assert ds.requests[0]["messages"][-1]["content"].startswith("[Current date and time: ")
+    assert "Current date and time" not in ds.requests[0]["messages"][0]["content"]   # system prompt stays cacheable

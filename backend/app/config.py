@@ -38,6 +38,8 @@ ALWAYS_LOADED_SKILLS = [s for s in os.environ.get("ALWAYS_LOADED_SKILLS", "evide
 DATA_DIR = Path(os.environ.get("DATA_DIR", ROOT / "data"))
 DB_PATH = DATA_DIR / "crm.db"
 
+TIMEZONE = os.environ.get("APP_TIMEZONE", "Asia/Ho_Chi_Minh")   # the "now" DeepSeek is told about
+
 MAX_TOOL_STEPS = int(os.environ.get("MAX_TOOL_STEPS", "10"))
 TOOL_RESULT_CHARS = int(os.environ.get("TOOL_RESULT_CHARS", "12000"))  # what the model sees per tool call
 TRACE_RESULT_CHARS = 1500                                              # what the trace panel shows
