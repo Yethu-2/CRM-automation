@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS oauth_clients (issuer TEXT, redirect_uri TEXT, client
   PRIMARY KEY (issuer, redirect_uri));
 CREATE TABLE IF NOT EXISTS oauth_states (state TEXT PRIMARY KEY, user TEXT, verifier TEXT, created_at REAL);
 CREATE TABLE IF NOT EXISTS oauth_tokens (user TEXT PRIMARY KEY, data BLOB, updated_at REAL);
+CREATE TABLE IF NOT EXISTS google_states (state TEXT PRIMARY KEY, user TEXT, verifier TEXT, created_at REAL);
+CREATE TABLE IF NOT EXISTS google_tokens (user TEXT PRIMARY KEY, data BLOB, updated_at REAL);
 CREATE TABLE IF NOT EXISTS messages (conv_id TEXT, ix INTEGER, message TEXT, PRIMARY KEY (conv_id, ix));
 CREATE TABLE IF NOT EXISTS runs (id INTEGER PRIMARY KEY AUTOINCREMENT, conv_id TEXT, created_at REAL, model TEXT,
   question TEXT, latency_ms INTEGER, prompt_tokens INTEGER, cache_hit_tokens INTEGER, completion_tokens INTEGER,
@@ -155,3 +157,33 @@ def save_oauth_token(user: str, blob: bytes) -> None:
 def delete_oauth_token(user: str) -> None:
     with connect() as c:
         c.execute("DELETE FROM oauth_tokens WHERE user = ?", (user,))
+
+
+# ---- OAuth (Google) ----
+def save_google_state(state: str, user: str, verifier: str, created_at: float) -> None:
+    with connect() as c:
+        c.execute("DELETE FROM google_states WHERE created_at < ?", (created_at - 3600,))
+        c.execute("INSERT INTO google_states VALUES (?, ?, ?, ?)", (state, user, verifier, created_at))
+
+
+def pop_google_state(state: str) -> dict | None:
+    with connect() as c:
+        r = c.execute("SELECT user, verifier, created_at FROM google_states WHERE state = ?", (state,)).fetchone()
+        c.execute("DELETE FROM google_states WHERE state = ?", (state,))
+    return dict(r) if r else None
+
+
+def get_google_token(user: str) -> bytes | None:
+    with connect() as c:
+        r = c.execute("SELECT data FROM google_tokens WHERE user = ?", (user,)).fetchone()
+    return r[0] if r else None
+
+
+def save_google_token(user: str, blob: bytes) -> None:
+    with connect() as c:
+        c.execute("INSERT OR REPLACE INTO google_tokens VALUES (?, ?, ?)", (user, blob, time.time()))
+
+
+def delete_google_token(user: str) -> None:
+    with connect() as c:
+        c.execute("DELETE FROM google_tokens WHERE user = ?", (user,))

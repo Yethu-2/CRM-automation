@@ -23,6 +23,12 @@ PIPEDRIVE_MCP_SCOPES = os.environ.get("PIPEDRIVE_MCP_SCOPES", "base deals:full c
 BASE_URL = os.environ.get("BASE_URL", "").rstrip("/")                            # e.g. https://crm.yethu-aung.dev
 SECRET_KEY = os.environ.get("SECRET_KEY", "")                                    # encrypts stored Pipedrive tokens
 
+# Google (Gmail, Drive, Calendar), each user's own account, read-only scopes. Off until the team agrees that email and
+# document content may be sent to DeepSeek.
+GOOGLE_ENABLED = os.environ.get("GOOGLE_ENABLED", "false").lower() == "true"
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+
 # Who is asking: Cloudflare Access sets this header. In production a request without it is refused.
 REQUIRE_ACCESS_EMAIL = os.environ.get("REQUIRE_ACCESS_EMAIL", "false").lower() == "true"
 

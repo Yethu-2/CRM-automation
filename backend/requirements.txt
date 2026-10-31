@@ -3,3 +3,4 @@ uvicorn[standard]>=0.30,<1
 httpx>=0.27,<1
 mcp>=1.10,<2
 cryptography>=43
+pypdf>=4

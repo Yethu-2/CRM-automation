@@ -1,10 +1,11 @@
-"""The tools DeepSeek can call: load_skill, plus the user's read-only Pipedrive MCP tools when they've connected."""
+"""The tools DeepSeek can call: load_skill, plus the user's read-only Pipedrive MCP and Google tools when connected."""
 from __future__ import annotations
 
 import json
 from typing import Any
 
 from . import config, skills
+from .google_tools import GoogleWorkspace
 from .pipedrive_mcp import PipedriveMCP
 
 LOAD_SKILL = {"type": "function", "function": {
@@ -18,12 +19,13 @@ LOAD_SKILL = {"type": "function", "function": {
 
 
 class Toolbox:
-    def __init__(self, skill_set: dict[str, skills.Skill], pipedrive: PipedriveMCP | None = None):
+    def __init__(self, skill_set: dict[str, skills.Skill], pipedrive: PipedriveMCP | None = None, google: GoogleWorkspace | None = None):
         self.skills = skill_set
         self.pipedrive = pipedrive
+        self.google = google
 
     def schemas(self) -> list[dict]:
-        return [LOAD_SKILL, *(self.pipedrive.schemas() if self.pipedrive else [])]
+        return [LOAD_SKILL, *(self.pipedrive.schemas() if self.pipedrive else []), *(self.google.schemas() if self.google else [])]
 
     async def call(self, name: str, raw_args: str) -> tuple[str, bool]:
         """Returns (result text for the model, ok). Errors come back as text so the model can recover."""
@@ -35,6 +37,8 @@ class Toolbox:
                 text, ok = skills.load(self.skills, args["name"], args.get("reference")), True
             elif self.pipedrive and self.pipedrive.handles(name):
                 text, ok = await self.pipedrive.call(name, args)
+            elif self.google and self.google.handles(name):
+                text, ok = await self.google.call(name, args)
             else:
                 raise ValueError(f"unknown tool {name!r}")
         except Exception as e:  # noqa: BLE001 - every failure becomes a tool error the model can see

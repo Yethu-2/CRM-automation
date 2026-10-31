@@ -11,7 +11,8 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from . import agent, config, oauth, pipedrive_mcp, skills, store
+from . import agent, config, google_oauth, oauth, pipedrive_mcp, skills, store
+from .google_tools import GoogleWorkspace
 from .pipedrive_mcp import PipedriveMCP
 from .tools import Toolbox
 
@@ -24,6 +25,10 @@ def make_llm_client() -> httpx.AsyncClient:      # replaced in tests
 
 
 open_pipedrive_session = pipedrive_mcp.open_session   # replaced in tests
+
+
+def make_google(token: str) -> GoogleWorkspace:       # replaced in tests
+    return GoogleWorkspace(token)
 
 
 def current_user(request: Request) -> str:
@@ -61,6 +66,7 @@ def get_config(user: str = Depends(current_user)) -> dict:
     s = skills.discover()
     return {"models": config.MODELS, "default_model": config.DEFAULT_MODEL, "deepseek_configured": bool(config.DEEPSEEK_API_KEY),
             "pipedrive": {"available": oauth.available(), "connected": oauth.connected(user)},
+            "google": google_oauth.status(user),
             "skills": [{"name": x.name, "description": x.description, "always_loaded": x.name in config.ALWAYS_LOADED_SKILLS}
                        for x in s.values()],
             "user": user}
@@ -92,6 +98,33 @@ async def pipedrive_callback(request: Request, user: str = Depends(current_user)
 @app.post("/api/pipedrive/disconnect")
 def pipedrive_disconnect(user: str = Depends(current_user)) -> dict:
     oauth.disconnect(user)
+    return {"ok": True}
+
+
+# ---- Connect Google (per user, read-only scopes; off unless GOOGLE_ENABLED) ----
+@app.get("/oauth/google/start")
+def google_start(user: str = Depends(current_user)):
+    try:
+        return RedirectResponse(google_oauth.start(user), status_code=302)
+    except oauth.OAuthError as e:
+        return _page("Couldn't start the Google sign-in", str(e))
+
+
+@app.get("/oauth/google/callback")
+async def google_callback(request: Request, user: str = Depends(current_user)):
+    q = request.query_params
+    if q.get("error"):
+        return _page("Google wasn't connected", q.get("error_description") or q["error"])
+    try:
+        await google_oauth.finish(user, q.get("code", ""), q.get("state", ""))
+    except (oauth.OAuthError, httpx.HTTPError) as e:
+        return _page("Google wasn't connected", str(e))
+    return RedirectResponse("/?google=connected", status_code=302)
+
+
+@app.post("/api/google/disconnect")
+async def google_disconnect(user: str = Depends(current_user)) -> dict:
+    await google_oauth.disconnect(user)
     return {"ok": True}
 
 
@@ -145,8 +178,13 @@ async def send(conv_id: str, body: NewMessage, user: str = Depends(current_user)
                         yield _sse({"type": "pipedrive", "tools": sorted(pipedrive.read_tools), "blocked": pipedrive.blocked})
                     except Exception as e:  # noqa: BLE001 - answer without CRM data rather than not at all
                         yield _sse({"type": "warning", "message": f"Pipedrive unavailable ({type(e).__name__}: {e}); answering without CRM data."})
+                google = None
+                gtoken = await google_oauth.access_token(user)
+                if gtoken:
+                    google = make_google(gtoken)
+                    stack.push_async_callback(google.aclose)
                 client = await stack.enter_async_context(make_llm_client())
-                async for ev in agent.run_turn(client, Toolbox(skills.discover(), pipedrive), model, [*conv["messages"], user_msg], new):
+                async for ev in agent.run_turn(client, Toolbox(skills.discover(), pipedrive, google), model, [*conv["messages"], user_msg], new):
                     if ev["type"] == "done":
                         done = ev
                     elif ev["type"] == "error":

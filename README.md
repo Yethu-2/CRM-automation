@@ -17,6 +17,8 @@ FastAPI backend (backend/app)
    ├─ tools.py          load_skill + the user's read-only Pipedrive MCP tools
    ├─ pipedrive_mcp.py  Pipedrive's official MCP server (mcp.pipedrive.ai), write tools filtered out and blocked
    ├─ oauth.py          per-user "Connect Pipedrive": OAuth + PKCE, self-registered client, encrypted tokens
+   ├─ google_oauth.py   per-user "Connect Google": read-only scopes, PKCE, refresh, revoke on disconnect
+   ├─ google_tools.py   Gmail / Drive / Calendar read tools (GET only)
    └─ store.py          SQLite: per-user conversations, one run row per answer → CSV export
 ```
 
@@ -33,13 +35,18 @@ FastAPI backend (backend/app)
   name, or the server's `readOnlyHint`, and no write verb) are offered to DeepSeek, and any other call is refused
   before it reaches Pipedrive. The app never requests `admin`, `mail` or `mail-sending` scopes. When a change is
   warranted, DeepSeek writes a change plan for a human instead. The trace lists the tools offered and blocked.
+- **Connect your own Google (Gmail, Drive, Calendar), read-only.** *Connect Google* asks only for
+  `gmail.readonly`, `drive.readonly` and `calendar.readonly`, so Google itself prevents sending, editing or deleting;
+  a sign-in that returns fewer or wider scopes is refused. DeepSeek can search and read email threads, search and
+  read Drive files (Docs, Sheets, Slides, PDF, .docx, text) and list calendar events. Disconnecting also revokes the
+  grant at Google. **Off unless `GOOGLE_ENABLED=true`**: email and document content DeepSeek reads is sent to
+  DeepSeek's API (hosted in China), so switch it on only once the team has agreed to that.
 - **Private chats.** Conversations and the run log are per user.
 - **Trace panel** per answer: skills loaded, every tool call (arguments, result, time), input / cached / output
   tokens, cost (once `prices.json` is filled in) and total time.
 - **Run log**: every answer is a row in SQLite; *Download run log (CSV)* in the sidebar.
 
-Not in v1 (designed for, not built): Gmail and Calendar (read-only; pending a decision on sending email data to
-DeepSeek), a case runner for the Phase 2 test cases with the five acceptance gates, client-memory tools over the
+Not in v1 (designed for, not built): a case runner for the Phase 2 test cases with the five acceptance gates, client-memory tools over the
 Phase 2 Supabase schema, running the skills' Python scripts.
 
 ## Skills

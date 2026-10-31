@@ -72,6 +72,7 @@ details.step pre { margin: 6px 0 0; max-height: 260px; }
   <aside>
     <div class="brand">Komosion CRM<small>on DeepSeek · read-only Pipedrive</small></div>
     <div id="pd" class="pd"></div>
+    <div id="gg" class="pd"></div>
     <button class="primary" id="new">+ New chat</button>
     <div id="convs"></div>
     <div class="foot">
@@ -115,8 +116,8 @@ async function init() {
   cfg = await api("api/config");
   $("#model").innerHTML = cfg.models.map(m => `<option>${esc(m)}</option>`).join("");
   $("#status").innerHTML = [cfg.deepseek_configured ? "" : `<span class="bad">DeepSeek key missing</span>`, `${cfg.skills.length} skills`].filter(Boolean).join(" · ");
-  renderPipedrive();
-  if (new URLSearchParams(location.search).get("pipedrive") === "connected") history.replaceState(null, "", location.pathname);
+  renderPipedrive(); renderGoogle();
+  if (location.search) history.replaceState(null, "", location.pathname);
   $("#who").textContent = cfg.user || "";
   await loadConvs();
   const last = (await api("api/conversations"))[0];
@@ -133,6 +134,19 @@ function renderPipedrive() {
   } else {
     el.innerHTML = `<span class="bad">● Pipedrive not connected</span><span class="muted">Sign in with your Komosion Pipedrive account. The app only reads.</span><button class="primary" id="pdOn">Connect Pipedrive</button>`;
     $("#pdOn").onclick = () => { location.href = "oauth/pipedrive/start"; };
+  }
+}
+
+function renderGoogle() {
+  const g = cfg.google, el = $("#gg");
+  if (!g.available) { el.style.display = "none"; return; }
+  if (g.connected) {
+    el.innerHTML = `<span class="ok">● Google connected</span><span class="muted">${esc(g.account || "")} · Gmail, Drive, Calendar · read-only</span><button id="ggOff">Disconnect</button>`;
+    $("#ggOff").onclick = async () => { if (!confirm("Disconnect your Google account? This also removes the app's access in your Google account.")) return;
+      await api("api/google/disconnect", {method: "POST"}); cfg.google.connected = false; renderGoogle(); };
+  } else {
+    el.innerHTML = `<span class="bad">● Google not connected</span><span class="muted">Gmail, Drive and Calendar, read-only. Emails and files DeepSeek reads to answer you are sent to DeepSeek's API (hosted in China).</span><button class="primary" id="ggOn">Connect Google</button>`;
+    $("#ggOn").onclick = () => { location.href = "oauth/google/start"; };
   }
 }
 
@@ -221,7 +235,7 @@ async function send(text) {
         const ev = JSON.parse(line.slice(5));
         if (ev.type === "text") { answer += ev.text; bubble.innerHTML = md(answer); }
         else if (ev.type === "thinking") { thinking += ev.text; if (!answer) bubble.innerHTML = `<div class="thinking">${esc(thinking.slice(-1500))}</div>`; }
-        else if (ev.type === "tool_start") { chips.insertAdjacentHTML("beforeend", `<span class="chip ${ev.name === "load_skill" ? "" : "tool"}" data-id="${esc(ev.id)}">${esc(ev.name === "load_skill" ? "skill: " + shortArgs(ev) : ev.name.replace("pipedrive__", "Pipedrive: "))} …</span>`);
+        else if (ev.type === "tool_start") { chips.insertAdjacentHTML("beforeend", `<span class="chip ${ev.name === "load_skill" ? "" : "tool"}" data-id="${esc(ev.id)}">${esc(ev.name === "load_skill" ? "skill: " + shortArgs(ev) : ev.name.replace("pipedrive__", "Pipedrive: ").replace("google_", "Google: "))} …</span>`);
           live.trace.push(ev); showTrace(live, turn); }
         else if (ev.type === "tool_end") { const c = chips.querySelector(`[data-id="${CSS.escape(ev.id)}"]`); if (c) { c.textContent = c.textContent.replace(" …", ""); if (!ev.ok) c.classList.add("bad"); }
           live.trace[live.trace.findIndex(s => s.id === ev.id)] = ev; showTrace(live, turn); }
