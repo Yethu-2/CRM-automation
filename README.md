@@ -30,6 +30,7 @@ FastAPI backend (backend/app)
   account, through Pipedrive's official MCP server (the same one Claude's Pipedrive connector uses). No API key, no
   Developer Hub app: the app registers itself with Pipedrive's OAuth server. Each user sees only what their own
   Pipedrive permissions allow; their token is stored encrypted against their Cloudflare Access email.
+- **Or through your own Pipedrive app** (Developer Hub, e.g. in a developer sandbox): set `PIPEDRIVE_APP_CLIENT_ID` / `PIPEDRIVE_APP_CLIENT_SECRET` and *Connect Pipedrive* uses that app (callback `{BASE_URL}/oauth/callback`). Give the app **read-only scopes** and Pipedrive itself refuses writes. After sign-in the app checks whether the MCP server takes the token; otherwise it uses the read-only REST client at your company's `api_domain`.
 - **Or connect with an API token** (e.g. a Pipedrive developer sandbox): *Use an API token* in the sidebar. The app checks the token, then uses the official MCP server if it accepts API tokens, otherwise a read-only REST client (`pipedrive_rest.py`: GET requests to an allowlist of read endpoints only, no write method at all). Stored encrypted per user, like OAuth tokens.
 - **Read-only, enforced in code.** Pipedrive's MCP server has no read-only scopes for deals, contacts or activities
   (only `*:full`), so the app filters the server's tool list: only tools that are clearly reads (a read verb in the

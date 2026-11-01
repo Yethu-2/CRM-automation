@@ -20,7 +20,7 @@ def env(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "SECRET_KEY", "s")
     monkeypatch.setattr(config, "BASE_URL", "")   # no OAuth needed for tokens
     rest = FakePipedriveREST()
-    monkeypatch.setattr(main, "make_pipedrive_rest", lambda token: PipedriveREST(token, transport=rest.transport()))
+    monkeypatch.setattr(main, "make_pipedrive_rest", lambda token, base_url=None, bearer=False: PipedriveREST(token, base_url=base_url, bearer=bearer, transport=rest.transport()))
     return rest
 
 

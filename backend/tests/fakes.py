@@ -153,13 +153,13 @@ class FakeAuthServer:
 
 class FakePipedriveREST:
     """api.pipedrive.com, read endpoints only; records every request."""
-    def __init__(self, good_token="sandbox-token-123"):
-        self.requests, self.good = [], good_token
+    def __init__(self, good_token="sandbox-token-123", bearers=("Bearer app-access-1", "Bearer app-access-2")):
+        self.requests, self.good, self.bearers = [], good_token, set(bearers)
 
     def transport(self):
         def handle(req: httpx.Request):
             self.requests.append(req)
-            if req.headers.get("x-api-token") != self.good:
+            if req.headers.get("x-api-token") != self.good and req.headers.get("authorization") not in self.bearers:
                 return httpx.Response(401, json={"success": False, "error": "unauthorized"})
             if req.url.path == "/v1/users/me":
                 return httpx.Response(200, json={"data": {"name": "Yethu Aung", "email": "y@sandbox.test", "company_name": "Komosion Sandbox"}})

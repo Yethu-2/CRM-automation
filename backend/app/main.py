@@ -28,8 +28,8 @@ def make_llm_client() -> httpx.AsyncClient:      # replaced in tests
 open_pipedrive_session = pipedrive_mcp.open_session   # replaced in tests
 
 
-def make_pipedrive_rest(token: str) -> PipedriveREST:  # replaced in tests
-    return PipedriveREST(token)
+def make_pipedrive_rest(token: str, base_url: str | None = None, bearer: bool = False) -> PipedriveREST:  # replaced in tests
+    return PipedriveREST(token, base_url=base_url, bearer=bearer)
 
 
 def make_google(token: str) -> GoogleWorkspace:       # replaced in tests
@@ -97,7 +97,31 @@ async def pipedrive_callback(request: Request, user: str = Depends(current_user)
         await oauth.finish(user, q.get("code", ""), q.get("state", ""))
     except (oauth.OAuthError, httpx.HTTPError) as e:
         return _page("Pipedrive wasn't connected", str(e))
+    if oauth.app_mode():
+        await _probe_app_connection(user)
     return RedirectResponse("/?pipedrive=connected", status_code=302)
+
+
+async def _probe_app_connection(user: str) -> None:
+    """After an app sign-in: whose account it is (REST), and whether the MCP server takes the app's token too."""
+    cred = await oauth.credential(user)
+    if not cred:
+        return
+    account, transport = None, "rest"
+    rest = make_pipedrive_rest(cred["token"], base_url=cred.get("api_domain"), bearer=True)
+    try:
+        account = await rest.me()
+    except Exception:  # noqa: BLE001 - the connection still works for chat; we just can't show the name
+        pass
+    finally:
+        await rest.aclose()
+    try:
+        async with open_pipedrive_session(cred["token"], kind="oauth") as session:
+            if (await PipedriveMCP.create(session)).read_tools:
+                transport = "mcp"
+    except Exception:  # noqa: BLE001 - Developer Hub tokens may not be accepted by the MCP server
+        pass
+    oauth.set_connection(user, transport, account)
 
 
 class PipedriveToken(BaseModel):
@@ -208,7 +232,7 @@ async def send(conv_id: str, body: NewMessage, user: str = Depends(current_user)
                 if cred:
                     try:
                         if cred["transport"] == "rest":
-                            pipedrive = make_pipedrive_rest(cred["token"])
+                            pipedrive = make_pipedrive_rest(cred["token"], base_url=cred.get("api_domain"), bearer=cred["kind"] == "oauth")
                             stack.push_async_callback(pipedrive.aclose)
                         else:
                             session = await stack.enter_async_context(open_pipedrive_session(cred["token"], kind=cred["kind"]))

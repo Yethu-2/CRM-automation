@@ -24,8 +24,21 @@ class OAuthError(RuntimeError):
     pass
 
 
+APP_AUTHORIZE_URL = "https://oauth.pipedrive.com/oauth/authorize"
+APP_TOKEN_URL = "https://oauth.pipedrive.com/oauth/token"
+
+
 def available() -> bool:
     return bool(config.SECRET_KEY and config.BASE_URL)
+
+
+def app_mode() -> bool:
+    """A Developer Hub app is configured: use its client and read-only scopes instead of MCP self-registration."""
+    return bool(config.PIPEDRIVE_APP_CLIENT_ID and config.PIPEDRIVE_APP_CLIENT_SECRET)
+
+
+def _app_reg() -> dict:
+    return {"client_id": config.PIPEDRIVE_APP_CLIENT_ID, "client_secret": config.PIPEDRIVE_APP_CLIENT_SECRET}
 
 
 def redirect_uri() -> str:
@@ -102,6 +115,10 @@ async def _client_for(client: httpx.AsyncClient, meta: dict) -> dict:
 
 async def start(user: str) -> str:
     """The URL to send the user's browser to."""
+    if app_mode():   # scopes are set on the app itself in the Developer Hub
+        state = secrets.token_urlsafe(24)
+        store.save_oauth_state(state, user, "", time.time())
+        return APP_AUTHORIZE_URL + "?" + urlencode({"client_id": config.PIPEDRIVE_APP_CLIENT_ID, "redirect_uri": redirect_uri(), "state": state})
     async with make_http_client() as client:
         meta = await discover(client)
         reg = await _client_for(client, meta)
@@ -121,6 +138,13 @@ async def finish(user: str, code: str, state: str) -> None:
     saved = store.pop_oauth_state(state)
     if not saved or saved["user"] != user or time.time() - saved["created_at"] > STATE_TTL_S:
         raise OAuthError("this sign-in link is invalid or expired; start again from the app")
+    if app_mode():
+        async with make_http_client() as client:
+            tok = await _token_request(client, APP_TOKEN_URL, _app_reg(), {
+                "grant_type": "authorization_code", "code": code, "redirect_uri": redirect_uri()})
+        _save(user, tok, {"token_endpoint": APP_TOKEN_URL, "resource": None}, _app_reg(),
+              keep={"kind": "app", "api_domain": tok.get("api_domain"), "transport": "rest"})
+        return
     async with make_http_client() as client:
         meta = await discover(client)
         reg = await _client_for(client, meta)
@@ -151,7 +175,8 @@ async def access_token(user: str) -> str | None:
                 store.delete_oauth_token(user)   # refresh refused: they need to connect again
                 return None
         tok.setdefault("refresh_token", t["refresh_token"])
-        t = _save(user, tok, {"token_endpoint": t["token_endpoint"], "resource": t["resource"]}, reg)
+        t = _save(user, tok, {"token_endpoint": t["token_endpoint"], "resource": t["resource"]}, reg,
+                  keep={k: (tok.get(k) or t.get(k)) if k == "api_domain" else t.get(k) for k in ("kind", "api_domain", "transport", "account")})
     return t["access_token"]
 
 
@@ -175,7 +200,20 @@ async def credential(user: str) -> dict | None:
     if t.get("kind") == "api_token":
         return {"kind": "api_token", "token": t["api_token"], "transport": t.get("transport", "rest"), "account": t.get("account")}
     token = await access_token(user)
-    return {"kind": "oauth", "token": token, "transport": "mcp"} if token else None
+    if not token:
+        return None
+    if t.get("kind") == "app":   # a Developer Hub app: REST at the company's API domain, unless MCP took the token
+        return {"kind": "oauth", "token": token, "transport": t.get("transport", "rest"), "api_domain": t.get("api_domain")}
+    return {"kind": "oauth", "token": token, "transport": "mcp"}
+
+
+def set_connection(user: str, transport: str, account: dict | None) -> None:
+    """Record which way an app connection works (found by probing after sign-in) and whose account it is."""
+    blob = store.get_oauth_token(user)
+    if blob:
+        t = _decrypt(blob)
+        t.update(transport=transport, account=account or {})
+        store.save_oauth_token(user, _encrypt(t))
 
 
 def status(user: str) -> dict:
@@ -191,7 +229,7 @@ def disconnect(user: str) -> None:
 
 
 async def _token_request(client: httpx.AsyncClient, url: str, reg: dict, form: dict) -> dict:
-    form = {**form, "client_id": reg["client_id"]}
+    form = {k: v for k, v in {**form, "client_id": reg["client_id"]}.items() if v is not None}
     auth = (reg["client_id"], reg["client_secret"]) if reg.get("client_secret") else None
     r = await client.post(url, data=form, auth=auth, headers={"accept": "application/json"})
     if r.status_code != 200:
@@ -202,10 +240,11 @@ async def _token_request(client: httpx.AsyncClient, url: str, reg: dict, form: d
     return tok
 
 
-def _save(user: str, tok: dict, meta: dict, reg: dict) -> dict:
+def _save(user: str, tok: dict, meta: dict, reg: dict, keep: dict | None = None) -> dict:
     data = {"access_token": tok["access_token"], "refresh_token": tok.get("refresh_token"),
             "expires_at": time.time() + int(tok["expires_in"]) if tok.get("expires_in") else None,
             "token_endpoint": meta["token_endpoint"], "resource": meta["resource"],
-            "client_id": reg["client_id"], "client_secret": reg.get("client_secret")}
+            "client_id": reg["client_id"], "client_secret": reg.get("client_secret"),
+            **{k: v for k, v in (keep or {}).items() if v is not None}}
     store.save_oauth_token(user, _encrypt(data))
     return data

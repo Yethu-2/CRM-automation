@@ -45,10 +45,13 @@ class ReadOnlyViolation(PermissionError):
 
 
 class PipedriveREST:
-    def __init__(self, token: str, base_url: str | None = None, transport: httpx.AsyncBaseTransport | None = None):
+    def __init__(self, token: str, base_url: str | None = None, transport: httpx.AsyncBaseTransport | None = None,
+                 bearer: bool = False):
+        """bearer=True for an OAuth app token (sent to the company's api_domain); otherwise an API token."""
         self._token = token
-        self._client = httpx.AsyncClient(base_url=base_url or config.PIPEDRIVE_API_URL, transport=transport, timeout=30,
-                                         headers={"x-api-token": token, "accept": "application/json"})
+        auth = {"Authorization": f"Bearer {token}"} if bearer else {"x-api-token": token}
+        self._client = httpx.AsyncClient(base_url=(base_url or config.PIPEDRIVE_API_URL).rstrip("/"), transport=transport, timeout=30,
+                                         headers={**auth, "accept": "application/json"})
         self.read_tools = sorted(NAMES)
         self.blocked: list[str] = []   # nothing to block: this client has no write calls at all
 
