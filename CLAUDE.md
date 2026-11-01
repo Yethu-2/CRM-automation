@@ -7,6 +7,7 @@ in `backend/app/static/index.html`, tests in `backend/tests` (run in Docker, see
 - Pipedrive is read-only. It's reached only through `pipedrive_mcp.py` (Pipedrive's official MCP server, per-user
   OAuth in `oauth.py`). `is_read_only` filters the server's tools and `PipedriveMCP.call` refuses anything else; never
   loosen either to admit a write, and never add admin/mail scopes. Proposals are text change plans for humans.
+- API-token connections (sandbox) go through `pipedrive_mcp.py` with `x-api-token` when the MCP server accepts it, else `pipedrive_rest.py` (GET-only allowlist, no write method). Never add a write path to either.
 - Conversations and runs are per user (Cloudflare Access email). Keep every query scoped to the user.
 - Never read, print or commit `.env`. Secrets never reach the browser or logs.
 - Don't edit `skills/`: it's a verbatim copy of ZyleStacion/crm-skillsets (commit in `skills/SOURCE.md`). Local

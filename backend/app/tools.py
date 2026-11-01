@@ -7,6 +7,7 @@ from typing import Any
 from . import config, skills
 from .google_tools import GoogleWorkspace
 from .pipedrive_mcp import PipedriveMCP
+from .pipedrive_rest import PipedriveREST
 
 LOAD_SKILL = {"type": "function", "function": {
     "name": "load_skill",
@@ -19,7 +20,7 @@ LOAD_SKILL = {"type": "function", "function": {
 
 
 class Toolbox:
-    def __init__(self, skill_set: dict[str, skills.Skill], pipedrive: PipedriveMCP | None = None, google: GoogleWorkspace | None = None):
+    def __init__(self, skill_set: dict[str, skills.Skill], pipedrive: PipedriveMCP | PipedriveREST | None = None, google: GoogleWorkspace | None = None):
         self.skills = skill_set
         self.pipedrive = pipedrive
         self.google = google

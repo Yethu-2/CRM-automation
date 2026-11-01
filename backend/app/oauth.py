@@ -156,7 +156,34 @@ async def access_token(user: str) -> str | None:
 
 
 def connected(user: str) -> bool:
-    return available() and store.get_oauth_token(user) is not None
+    return bool(config.SECRET_KEY) and store.get_oauth_token(user) is not None
+
+
+# ---- API-token connections (e.g. a developer sandbox), as an alternative to OAuth ----
+def save_api_token(user: str, token: str, transport: str, account: dict | None) -> None:
+    store.save_oauth_token(user, _encrypt({"kind": "api_token", "api_token": token, "transport": transport, "account": account or {}}))
+
+
+async def credential(user: str) -> dict | None:
+    """How to reach this user's Pipedrive: {"kind": "oauth"|"api_token", "token", "transport": "mcp"|"rest"}."""
+    if not config.SECRET_KEY:
+        return None
+    blob = store.get_oauth_token(user)
+    if not blob:
+        return None
+    t = _decrypt(blob)
+    if t.get("kind") == "api_token":
+        return {"kind": "api_token", "token": t["api_token"], "transport": t.get("transport", "rest"), "account": t.get("account")}
+    token = await access_token(user)
+    return {"kind": "oauth", "token": token, "transport": "mcp"} if token else None
+
+
+def status(user: str) -> dict:
+    blob = store.get_oauth_token(user) if config.SECRET_KEY else None
+    t = _decrypt(blob) if blob else {}
+    return {"available": available(), "token_available": bool(config.SECRET_KEY), "connected": bool(blob),
+            "kind": t.get("kind", "oauth") if blob else None, "transport": t.get("transport", "mcp") if blob else None,
+            "account": t.get("account") or None}
 
 
 def disconnect(user: str) -> None:

@@ -88,9 +88,9 @@ class PipedriveMCP:
 
 
 @asynccontextmanager
-async def open_session(access_token: str) -> AsyncIterator[ClientSession]:
-    async with streamablehttp_client(config.PIPEDRIVE_MCP_URL, headers={"Authorization": f"Bearer {access_token}"},
-                                     timeout=30) as (read, write, _):
+async def open_session(token: str, kind: str = "oauth") -> AsyncIterator[ClientSession]:
+    headers = {"Authorization": f"Bearer {token}"} if kind == "oauth" else {"x-api-token": token}
+    async with streamablehttp_client(config.PIPEDRIVE_MCP_URL, headers=headers, timeout=30) as (read, write, _):
         async with ClientSession(read, write) as session:
             await session.initialize()
             yield session

@@ -14,6 +14,7 @@ DEFAULT_MODEL = os.environ.get("DEEPSEEK_MODEL", MODELS[0] if MODELS else "deeps
 
 # Pipedrive via its official MCP server; each user connects their own account (OAuth). No API key.
 PIPEDRIVE_MCP_URL = os.environ.get("PIPEDRIVE_MCP_URL", "https://mcp.pipedrive.ai/mcp")
+PIPEDRIVE_API_URL = os.environ.get("PIPEDRIVE_API_URL", "https://api.pipedrive.com").rstrip("/")   # API-token fallback (REST)
 PIPEDRIVE_MCP_CLIENT_ID = os.environ.get("PIPEDRIVE_MCP_CLIENT_ID", "")          # only if dynamic registration isn't offered
 PIPEDRIVE_MCP_CLIENT_SECRET = os.environ.get("PIPEDRIVE_MCP_CLIENT_SECRET", "")
 # The fewest permissions that let it read deals, people, organizations and activities. Pipedrive's MCP server has no

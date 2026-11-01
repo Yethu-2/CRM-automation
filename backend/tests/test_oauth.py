@@ -76,7 +76,8 @@ def test_http_routes_and_access_requirement(auth, monkeypatch):
     q = parse_qs(urlsplit(r.headers["location"]).query)
     r = c.get("/oauth/callback", params={"code": auth.authorize(q), "state": q["state"][0]}, headers=h)
     assert r.status_code == 302 and r.headers["location"] == "/?pipedrive=connected"
-    assert c.get("/api/config", headers=h).json()["pipedrive"] == {"available": True, "connected": True}
+    pd = c.get("/api/config", headers=h).json()["pipedrive"]
+    assert pd["available"] and pd["connected"] and pd["kind"] == "oauth" and pd["transport"] == "mcp"
     assert c.get("/oauth/callback", params={"error": "access_denied"}, headers=h).status_code == 400
     monkeypatch.setattr(config, "REQUIRE_ACCESS_EMAIL", True)
     assert c.get("/api/config").status_code == 401

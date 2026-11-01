@@ -139,15 +139,32 @@ async function init() {
 
 function renderPipedrive() {
   const p = cfg.pipedrive, el = $("#pd");
-  if (!p.available) { el.innerHTML = `<span class="muted">Pipedrive connection isn't set up on this server yet.</span>`; return; }
+  if (!p.token_available) { el.innerHTML = `<span class="muted">Pipedrive connection isn't set up on this server yet.</span>`; return; }
   if (p.connected) {
-    el.innerHTML = `<span class="ok">● Pipedrive connected</span><span class="muted">Your own account, read-only.</span><button id="pdOff">Disconnect</button>`;
-    $("#pdOff").onclick = async () => { if (!confirm("Disconnect your Pipedrive account from this app?")) return;
-      await api("api/pipedrive/disconnect", {method: "POST"}); cfg.pipedrive.connected = false; renderPipedrive(); };
-  } else {
-    el.innerHTML = `<span class="bad">● Pipedrive not connected</span><span class="muted">Sign in with your Komosion Pipedrive account. The app only reads.</span><button class="primary" id="pdOn">Connect Pipedrive</button>`;
-    $("#pdOn").onclick = () => { location.href = "oauth/pipedrive/start"; };
+    const a = p.account || {}, who = [a.company, a.name].filter(Boolean).join(" · ");
+    el.innerHTML = `<span class="ok">● Pipedrive connected</span><span class="muted">${esc(who || "Your own account")}${p.transport === "rest" ? " · via API" : " · via MCP"} · read-only</span><button id="pdOff">Disconnect</button>`;
+    $("#pdOff").onclick = async () => { if (!confirm("Disconnect Pipedrive from this app?")) return;
+      await api("api/pipedrive/disconnect", {method: "POST"}); cfg = await api("api/config"); renderPipedrive(); };
+    return;
   }
+  el.innerHTML = `<span class="bad">● Pipedrive not connected</span>
+    <span class="muted">The app only reads, whichever way you connect.</span>
+    ${p.available ? `<button class="primary" id="pdOn">Connect Pipedrive</button>` : ""}
+    <details id="pdTok"><summary class="muted" style="cursor:pointer">Use an API token</summary>
+      <form id="pdTokForm" style="display:grid;gap:6px;margin-top:6px">
+        <input id="pdTokIn" type="password" autocomplete="off" placeholder="Pipedrive API token" style="font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink)">
+        <span class="muted" style="font-size:12px">Pipedrive → Settings → Personal preferences → API. Stored encrypted; only you use it.</span>
+        <button class="primary" id="pdTokBtn">Connect with token</button>
+      </form></details>`;
+  if (p.available) $("#pdOn").onclick = () => { location.href = "oauth/pipedrive/start"; };
+  $("#pdTokForm").onsubmit = async e => {
+    e.preventDefault(); const t = $("#pdTokIn").value.trim(); if (!t) return;
+    $("#pdTokBtn").disabled = true; $("#pdTokBtn").textContent = "Checking…";
+    try { const r = await api("api/pipedrive/token", {method: "POST", body: JSON.stringify({token: t})});
+      cfg = await api("api/config"); renderPipedrive();
+      alert("Connected to " + ([r.account.company, r.account.name].filter(Boolean).join(" · ") || "Pipedrive") + (r.transport === "mcp" ? " through the MCP server." : " through the read-only API."));
+    } catch (err) { alert(err.message); $("#pdTokBtn").disabled = false; $("#pdTokBtn").textContent = "Connect with token"; }
+  };
 }
 
 function renderGoogle() {

@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from . import agent, config, google_oauth, oauth, pipedrive_mcp, skills, store
 from .google_tools import GoogleWorkspace
 from .pipedrive_mcp import PipedriveMCP
+from .pipedrive_rest import PipedriveREST
 from .tools import Toolbox
 
 STATIC = Path(__file__).parent / "static"
@@ -25,6 +26,10 @@ def make_llm_client() -> httpx.AsyncClient:      # replaced in tests
 
 
 open_pipedrive_session = pipedrive_mcp.open_session   # replaced in tests
+
+
+def make_pipedrive_rest(token: str) -> PipedriveREST:  # replaced in tests
+    return PipedriveREST(token)
 
 
 def make_google(token: str) -> GoogleWorkspace:       # replaced in tests
@@ -65,7 +70,7 @@ def health() -> dict:
 def get_config(user: str = Depends(current_user)) -> dict:
     s = skills.discover()
     return {"models": config.MODELS, "default_model": config.DEFAULT_MODEL, "deepseek_configured": bool(config.DEEPSEEK_API_KEY),
-            "pipedrive": {"available": oauth.available(), "connected": oauth.connected(user)},
+            "pipedrive": oauth.status(user),
             "google": google_oauth.status(user),
             "skills": [{"name": x.name, "description": x.description, "always_loaded": x.name in config.ALWAYS_LOADED_SKILLS}
                        for x in s.values()],
@@ -93,6 +98,35 @@ async def pipedrive_callback(request: Request, user: str = Depends(current_user)
     except (oauth.OAuthError, httpx.HTTPError) as e:
         return _page("Pipedrive wasn't connected", str(e))
     return RedirectResponse("/?pipedrive=connected", status_code=302)
+
+
+class PipedriveToken(BaseModel):
+    token: str = Field(min_length=10, max_length=200)
+
+
+@app.post("/api/pipedrive/token")
+async def pipedrive_token(body: PipedriveToken, user: str = Depends(current_user)) -> dict:
+    """Connect with an API token (e.g. a developer sandbox). Checks it, then prefers the official MCP server (with its
+    read-only tool filter) and falls back to the read-only REST client if the MCP server won't take the token."""
+    if not config.SECRET_KEY:
+        raise HTTPException(503, "SECRET_KEY isn't set on this server")
+    token = body.token.strip()
+    rest = make_pipedrive_rest(token)
+    try:
+        account = await rest.me()
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, f"Pipedrive didn't accept that token ({type(e).__name__}: {str(e)[:120]})") from e
+    finally:
+        await rest.aclose()
+    transport = "rest"
+    try:
+        async with open_pipedrive_session(token, kind="api_token") as session:
+            if (await PipedriveMCP.create(session)).read_tools:
+                transport = "mcp"
+    except Exception:  # noqa: BLE001 - the MCP server may not take API tokens; REST works either way
+        pass
+    oauth.save_api_token(user, token, transport, account)
+    return {"connected": True, "transport": transport, "account": account}
 
 
 @app.post("/api/pipedrive/disconnect")
@@ -170,11 +204,15 @@ async def send(conv_id: str, body: NewMessage, user: str = Depends(current_user)
         try:
             async with AsyncExitStack() as stack:
                 pipedrive = None
-                token = await oauth.access_token(user)
-                if token:
+                cred = await oauth.credential(user)
+                if cred:
                     try:
-                        session = await stack.enter_async_context(open_pipedrive_session(token))
-                        pipedrive = await PipedriveMCP.create(session)
+                        if cred["transport"] == "rest":
+                            pipedrive = make_pipedrive_rest(cred["token"])
+                            stack.push_async_callback(pipedrive.aclose)
+                        else:
+                            session = await stack.enter_async_context(open_pipedrive_session(cred["token"], kind=cred["kind"]))
+                            pipedrive = await PipedriveMCP.create(session)
                         yield _sse({"type": "pipedrive", "tools": sorted(pipedrive.read_tools), "blocked": pipedrive.blocked})
                     except Exception as e:  # noqa: BLE001 - answer without CRM data rather than not at all
                         yield _sse({"type": "warning", "message": f"Pipedrive unavailable ({type(e).__name__}: {e}); answering without CRM data."})

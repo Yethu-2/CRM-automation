@@ -80,9 +80,9 @@ def test_api_streams_a_turn_with_the_users_pipedrive_and_keeps_chats_private(mon
     monkeypatch.setattr(main, "make_llm_client", lambda: httpx.AsyncClient(transport=ds.transport()))
     monkeypatch.setattr(main, "open_pipedrive_session", fake_session_opener(calls, tokens))
 
-    async def token_for(user):
-        return f"token-of-{user}"
-    monkeypatch.setattr(oauth, "access_token", token_for)
+    async def cred_for(user):
+        return {"kind": "oauth", "token": f"token-of-{user}", "transport": "mcp"}
+    monkeypatch.setattr(oauth, "credential", cred_for)
     c = TestClient(main.app)
     me, other = {"cf-access-authenticated-user-email": "yethu@komosion.com"}, {"cf-access-authenticated-user-email": "linn@komosion.com"}
     conv = c.post("/api/conversations", json={}, headers=me).json()
@@ -109,12 +109,12 @@ def test_a_broken_pipedrive_connection_still_gets_an_answer(monkeypatch):
     monkeypatch.setattr(config, "DEEPSEEK_API_KEY", "k")
     monkeypatch.setattr(main, "make_llm_client", lambda: httpx.AsyncClient(transport=ds.transport()))
 
-    async def token_for(user):
-        return "t"
+    async def cred_for(user):
+        return {"kind": "oauth", "token": "t", "transport": "mcp"}
 
-    def broken(token):
+    def broken(token, kind="oauth"):
         raise ConnectionError("mcp.pipedrive.ai unreachable")
-    monkeypatch.setattr(oauth, "access_token", token_for)
+    monkeypatch.setattr(oauth, "credential", cred_for)
     monkeypatch.setattr(main, "open_pipedrive_session", broken)
     c = TestClient(main.app)
     conv = c.post("/api/conversations", json={}).json()

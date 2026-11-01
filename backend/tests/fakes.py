@@ -97,9 +97,9 @@ def fake_pipedrive_server(calls: list):
 
 def fake_session_opener(calls: list, tokens_seen: list | None = None):
     @asynccontextmanager
-    async def open_session(token):
+    async def open_session(token, kind="oauth"):
         if tokens_seen is not None:
-            tokens_seen.append(token)
+            tokens_seen.append(token if kind == "oauth" else f"{kind}:{token}")
         async with create_connected_server_and_client_session(fake_pipedrive_server(calls)) as session:
             yield session
     return open_session
@@ -148,4 +148,22 @@ class FakeAuthServer:
                 self.issued += 1
                 return httpx.Response(200, json={"access_token": f"access-{self.issued}", "refresh_token": f"refresh-{self.issued}", "expires_in": 3600})
             return httpx.Response(404)
+        return httpx.MockTransport(handle)
+
+
+class FakePipedriveREST:
+    """api.pipedrive.com, read endpoints only; records every request."""
+    def __init__(self, good_token="sandbox-token-123"):
+        self.requests, self.good = [], good_token
+
+    def transport(self):
+        def handle(req: httpx.Request):
+            self.requests.append(req)
+            if req.headers.get("x-api-token") != self.good:
+                return httpx.Response(401, json={"success": False, "error": "unauthorized"})
+            if req.url.path == "/v1/users/me":
+                return httpx.Response(200, json={"data": {"name": "Yethu Aung", "email": "y@sandbox.test", "company_name": "Komosion Sandbox"}})
+            if req.url.path.endswith("/search"):
+                return httpx.Response(200, json={"data": {"items": [{"item": {"id": 7, "title": "Sandbox deal"}}]}})
+            return httpx.Response(200, json={"data": {"id": 7}})
         return httpx.MockTransport(handle)

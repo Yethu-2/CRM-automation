@@ -35,7 +35,7 @@ Skill catalog:
 {always}"""
 
 
-PD_ON = "you have the user's own Pipedrive account through the pipedrive__ tools (their permissions apply)."
+PD_ON = "you have the user's own Pipedrive account through the pipedrive tools (their permissions apply)."
 PD_OFF = ("this user hasn't connected Pipedrive, so you have no CRM data. If they ask about clients or deals, say so "
           "and tell them to click \"Connect Pipedrive\" in the sidebar; don't guess CRM facts.")
 
