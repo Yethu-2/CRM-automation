@@ -17,7 +17,7 @@
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--ink); font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
-.app { display: grid; grid-template-columns: 260px 1fr 360px; height: 100vh; height: 100dvh; }
+.app { display: grid; grid-template-columns: 260px 1fr 360px; grid-template-rows: minmax(0, 1fr); height: 100vh; height: 100dvh; overflow: hidden; }
 .app.notrace { grid-template-columns: 260px 1fr; } .app.notrace .trace { display: none; }
 aside, .trace { background: var(--panel); border-right: 1px solid var(--line); overflow: auto; }
 .trace { border-right: 0; border-left: 1px solid var(--line); padding: 14px 16px; font-size: 13px; }
@@ -46,12 +46,13 @@ button:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px
 .pd input { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); min-width: 0; }
 .foot { font-size: 12px; color: var(--muted); display: grid; gap: 4px; padding: 6px; }
 .foot a { color: var(--muted); }
-main { display: flex; flex-direction: column; min-width: 0; }
+main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.bar, .composer { flex: none; }
 .bar { display: flex; gap: 8px; align-items: center; padding: 10px 18px; border-bottom: 1px solid var(--line); background: var(--panel); }
 .bar button.on { background: var(--user); }
 .bar .title { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 select { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
-.thread { flex: 1; overflow: auto; padding: 24px 0; }
+.thread { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 24px 0; }
 .msg { max-width: 760px; margin: 0 auto 18px; padding: 0 22px; }
 .msg.user .bubble { background: var(--user); border-radius: 14px; padding: 10px 14px; display: inline-block; white-space: pre-wrap; }
 .msg.user { text-align: right; } .msg.user .bubble { text-align: left; }
@@ -91,7 +92,7 @@ details.step pre { margin: 6px 0 0; max-height: 260px; }
 .menu { display: none; padding: 6px 10px; }
 .scrim { display: none; position: fixed; inset: 0; background: rgb(0 0 0 / .35); z-index: 4; }
 .scrim.open { display: block; }
-@media (max-width: 1100px) { .trace.open { box-shadow: -8px 0 24px rgb(0 0 0 / .18); } }
+@media (max-width: 1100px) { .trace.open { box-shadow: -8px 0 24px rgb(0 0 0 / .18); } .bar button.on { background: var(--panel); } }
 @media (max-width: 700px) {
   .app { grid-template-columns: 1fr; }
   aside { display: none; }
@@ -129,7 +130,7 @@ details.step pre { margin: 6px 0 0; max-height: 260px; }
     <div class="thread" id="thread"></div>
     <div class="composer">
       <form id="form">
-        <textarea id="input" rows="1" placeholder="Ask about a client, deal or opportunity…" autofocus></textarea>
+        <textarea id="input" rows="1" placeholder="Ask about a client or deal…" autofocus></textarea>
         <button class="primary" id="send">Send</button>
       </form>
       <div class="hint">Enter to send · Shift+Enter for a new line · answers can be wrong, so check the trace</div>
