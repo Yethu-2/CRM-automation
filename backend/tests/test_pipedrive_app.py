@@ -97,3 +97,10 @@ def test_chat_and_refresh_keep_the_company_domain(app_env, monkeypatch):
     assert search.headers["authorization"] == "Bearer app-access-2" and search.method == "GET"
     cred = asyncio.run(oauth.credential("yethu@komosion.com"))
     assert cred["api_domain"] == API_DOMAIN and cred["transport"] == "rest"
+
+
+def test_install_started_from_pipedrive_without_our_state_still_connects(app_env):
+    c = TestClient(main.app)
+    r = c.get("/oauth/callback", params={"code": "the-code"}, headers=H, follow_redirects=False)
+    assert r.status_code == 302 and c.get("/api/config", headers=H).json()["pipedrive"]["connected"]
+    assert c.get("/oauth/callback", params={"code": "x", "state": "forged"}, headers=H).status_code == 400   # a bad state still fails

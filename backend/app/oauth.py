@@ -135,9 +135,13 @@ async def start(user: str) -> str:
 
 
 async def finish(user: str, code: str, state: str) -> None:
-    saved = store.pop_oauth_state(state)
-    if not saved or saved["user"] != user or time.time() - saved["created_at"] > STATE_TTL_S:
-        raise OAuthError("this sign-in link is invalid or expired; start again from the app")
+    # Installing a private app from Pipedrive's Developer Hub ("Install & test") calls back without our state, so in
+    # app mode a callback with no state is accepted for the signed-in user (Cloudflare Access already says who that
+    # is; the code only works with this app's secret). A state that is present must still be valid.
+    if not (app_mode() and not state):
+        saved = store.pop_oauth_state(state)
+        if not saved or saved["user"] != user or time.time() - saved["created_at"] > STATE_TTL_S:
+            raise OAuthError("this sign-in link is invalid or expired; start again from the app")
     if app_mode():
         async with make_http_client() as client:
             tok = await _token_request(client, APP_TOKEN_URL, _app_reg(), {
