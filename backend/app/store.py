@@ -24,6 +24,11 @@ CREATE TABLE IF NOT EXISTS messages (conv_id TEXT, ix INTEGER, message TEXT, PRI
 CREATE TABLE IF NOT EXISTS runs (id INTEGER PRIMARY KEY AUTOINCREMENT, conv_id TEXT, created_at REAL, model TEXT,
   question TEXT, latency_ms INTEGER, prompt_tokens INTEGER, cache_hit_tokens INTEGER, completion_tokens INTEGER,
   cost_usd REAL, tool_calls INTEGER, skills_loaded TEXT, trace TEXT, error TEXT, user_email TEXT);
+CREATE TABLE IF NOT EXISTS meetings (id TEXT PRIMARY KEY, user TEXT, title TEXT, held_at TEXT, client_name TEXT,
+  client_org_id INTEGER, transcript TEXT, source TEXT, created_at REAL);
+CREATE TABLE IF NOT EXISTS proposals (id TEXT PRIMARY KEY, user TEXT, meeting_id TEXT, revision INTEGER, status TEXT,
+  summary TEXT, changes TEXT, raw TEXT, feedback TEXT, decision_note TEXT, kept TEXT, model TEXT, cost_usd REAL,
+  latency_ms INTEGER, tool_calls INTEGER, error TEXT, created_at REAL, reviewed_at REAL);
 """
 
 
@@ -187,3 +192,96 @@ def save_google_token(user: str, blob: bytes) -> None:
 def delete_google_token(user: str) -> None:
     with connect() as c:
         c.execute("DELETE FROM google_tokens WHERE user = ?", (user,))
+
+
+# ---- meetings and trigger proposals (per user) ----
+def add_meeting(user: str, m: dict) -> dict:
+    row = {"id": uuid.uuid4().hex[:12], "user": user, "title": m["title"], "held_at": m.get("held_at") or "",
+           "client_name": (m.get("client_name") or "").strip(), "client_org_id": m.get("client_org_id"),
+           "transcript": m["transcript"], "source": m.get("source") or "pasted", "created_at": time.time()}
+    with connect() as c:
+        c.execute("INSERT INTO meetings VALUES (:id, :user, :title, :held_at, :client_name, :client_org_id, :transcript, "
+                  ":source, :created_at)", row)
+    return row
+
+
+def list_meetings(user: str) -> list[dict]:
+    with connect() as c:
+        return [dict(r) for r in c.execute("SELECT * FROM meetings WHERE user = ? ORDER BY held_at DESC, created_at DESC", (user,))]
+
+
+def get_meeting(meeting_id: str, user: str) -> dict | None:
+    with connect() as c:
+        r = c.execute("SELECT * FROM meetings WHERE id = ? AND user = ?", (meeting_id, user)).fetchone()
+    return dict(r) if r else None
+
+
+def delete_meeting(meeting_id: str, user: str) -> None:
+    with connect() as c:
+        c.execute("DELETE FROM proposals WHERE meeting_id = ? AND user = ?", (meeting_id, user))
+        c.execute("DELETE FROM meetings WHERE id = ? AND user = ?", (meeting_id, user))
+
+
+def add_proposal(user: str, p: dict) -> dict:
+    with connect() as c:
+        rev = c.execute("SELECT COALESCE(MAX(revision), 0) + 1 FROM proposals WHERE meeting_id = ? AND user = ?",
+                        (p["meeting_id"], user)).fetchone()[0]
+        row = {"id": uuid.uuid4().hex[:12], "user": user, "meeting_id": p["meeting_id"], "revision": rev,
+               "status": p["status"], "summary": p.get("summary") or "", "changes": json.dumps(p.get("changes") or [], ensure_ascii=False),
+               "raw": p.get("raw") or "", "feedback": p.get("feedback") or "", "decision_note": "", "kept": "[]",
+               "model": p.get("model"), "cost_usd": p.get("cost_usd"), "latency_ms": p.get("latency_ms"),
+               "tool_calls": p.get("tool_calls") or 0, "error": p.get("error"), "created_at": time.time(), "reviewed_at": None}
+        c.execute("INSERT INTO proposals VALUES (:id, :user, :meeting_id, :revision, :status, :summary, :changes, :raw, :feedback, "
+                  ":decision_note, :kept, :model, :cost_usd, :latency_ms, :tool_calls, :error, :created_at, :reviewed_at)", row)
+    return _proposal(row)
+
+
+def list_proposals(user: str) -> list[dict]:
+    with connect() as c:
+        return [_proposal(dict(r)) for r in c.execute(
+            "SELECT p.*, m.title AS meeting_title, m.client_name, m.client_org_id, m.held_at FROM proposals p "
+            "JOIN meetings m ON m.id = p.meeting_id AND m.user = p.user WHERE p.user = ? ORDER BY p.created_at DESC", (user,))]
+
+
+def get_proposal(proposal_id: str, user: str) -> dict | None:
+    with connect() as c:
+        r = c.execute("SELECT * FROM proposals WHERE id = ? AND user = ?", (proposal_id, user)).fetchone()
+    return _proposal(dict(r)) if r else None
+
+
+def review_proposal(proposal_id: str, user: str, status: str, note: str = "", kept: list[int] | None = None) -> None:
+    """Only a proposal that is still waiting for review can be decided; the drafted text is never overwritten."""
+    with connect() as c:
+        c.execute("UPDATE proposals SET status = ?, decision_note = ?, kept = ?, reviewed_at = ? "
+                  "WHERE id = ? AND user = ? AND status = 'pending_review'",
+                  (status, note, json.dumps(kept or []), time.time(), proposal_id, user))
+
+
+def _proposal(d: dict) -> dict:
+    d["changes"] = json.loads(d["changes"] or "[]") if isinstance(d.get("changes"), str) else d.get("changes") or []
+    d["kept"] = json.loads(d["kept"] or "[]") if isinstance(d.get("kept"), str) else d.get("kept") or []
+    return d
+
+
+def dashboard_stats(user: str) -> dict:
+    with connect() as c:
+        runs = [dict(r) for r in c.execute("SELECT * FROM runs WHERE conv_id IN (SELECT id FROM conversations WHERE user = ?) "
+                                           "ORDER BY id DESC", (user,))]
+        convs = c.execute("SELECT COUNT(*) FROM conversations WHERE user = ?", (user,)).fetchone()[0]
+    skills_used: dict[str, int] = {}
+    tools_used: dict[str, int] = {}
+    for r in runs:
+        for s in json.loads(r["skills_loaded"] or "[]"):
+            skills_used[s] = skills_used.get(s, 0) + 1
+        for t in json.loads(r["trace"] or "[]"):
+            if t.get("name") != "load_skill":
+                tools_used[t["name"]] = tools_used.get(t["name"], 0) + 1
+    lat = [r["latency_ms"] for r in runs if r["latency_ms"]]
+    recent = [{k: r[k] for k in ("id", "conv_id", "created_at", "model", "question", "latency_ms", "cost_usd", "tool_calls", "error")}
+              for r in runs[:15]]
+    return {"conversations": convs, "runs": len(runs), "errors": sum(1 for r in runs if r["error"]),
+            "prompt_tokens": sum(r["prompt_tokens"] or 0 for r in runs), "cache_hit_tokens": sum(r["cache_hit_tokens"] or 0 for r in runs),
+            "completion_tokens": sum(r["completion_tokens"] or 0 for r in runs),
+            "cost_usd": round(sum(r["cost_usd"] or 0 for r in runs), 6), "avg_latency_ms": int(sum(lat) / len(lat)) if lat else None,
+            "skills_used": dict(sorted(skills_used.items(), key=lambda x: -x[1])),
+            "tools_used": dict(sorted(tools_used.items(), key=lambda x: -x[1])), "recent_runs": recent}
