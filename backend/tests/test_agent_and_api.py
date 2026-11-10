@@ -100,6 +100,11 @@ def test_api_streams_a_turn_with_the_users_pipedrive_and_keeps_chats_private(mon
     assert c.get("/api/conversations", headers=other).json() == []
     assert "How is Playbill?" not in c.get("/api/runs.csv", headers=other).text
     assert "How is Playbill?" in c.get("/api/runs.csv", headers=me).text
+    # the console's run list is per user too, newest first, and leaves out the full trace
+    assert c.get("/api/runs", headers=other).json() == []
+    mine = c.get("/api/runs", headers=me).json()
+    assert [r["question"] for r in mine] == ["How is Playbill?"] and mine[0]["tool_calls"] == 1 and "trace" not in mine[0]
+    assert "user_email" not in mine[0]
     assert c.post(f"/api/conversations/{conv['id']}/messages", json={"text": "x"}, headers=other).status_code == 404
     assert c.post(f"/api/conversations/{conv['id']}/messages", json={"text": "x", "model": "gpt-4"}, headers=me).status_code == 422
 
@@ -141,3 +146,9 @@ def test_deepseek_is_told_the_current_time_without_touching_the_cache_prefix_or_
     new, _ = collect(ds, [{"role": "user", "content": "What's next?"}], with_pipedrive=False)
     assert ds.requests[0]["messages"][-1]["content"].startswith("[Current date and time: ")
     assert "Current date and time" not in ds.requests[0]["messages"][0]["content"]   # system prompt stays cacheable
+
+
+def test_console_page_is_served():
+    c = TestClient(main.app)
+    r = c.get("/console")
+    assert r.status_code == 200 and "CRM Console" in r.text
