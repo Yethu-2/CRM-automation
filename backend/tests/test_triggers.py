@@ -112,5 +112,6 @@ def test_demo_meetings_load_once_and_the_dashboard_pages_serve(monkeypatch):
     listed = c.get("/api/meetings", headers=OTHER).json()["meetings"]
     assert sum(1 for x in listed if not x["indexed"]) == 1
     assert c.get("/dashboard", headers=OTHER).status_code == 200
+    assert c.get("/console", headers=OTHER).status_code == 200
     d = c.get("/api/dashboard", headers=OTHER).json()
     assert d["meetings"] == 3 and d["meetings_indexed"] == 2 and "runs" in d and "secret" not in json.dumps(d)

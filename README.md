@@ -47,7 +47,7 @@ FastAPI backend (backend/app)
 - **Trace panel** per answer: skills loaded, every tool call (arguments, result, time), input / cached / output
   tokens, cost (once `prices.json` is filled in) and total time.
 - **Run log**: every answer is a row in SQLite; *Download run log (CSV)* in the sidebar.
-- **Dashboard** (`/dashboard`, linked in the sidebar): overview (connections, tokens, cost, skills and tools used),
+- **Console** (`/console`, also reachable as `/dashboard`; linked in the sidebar): overview (connections, tokens, cost, skills and tools used),
   meetings, the review queue and recent answers, per user.
 - **Meeting triggers** (agreed with Truc, 3 Nov 2026; `triggers.py`): a meeting transcript, indexed to a client (name, plus
   the Pipedrive org ID when known), triggers DeepSeek to draft CRM updates from the transcript and that client's

@@ -294,7 +294,8 @@ class Redo(BaseModel):
     model: str | None = None
 
 
-@app.get("/dashboard")
+@app.get("/console")
+@app.get("/dashboard")  # old path, kept as an alias
 def dashboard_page(user: str = Depends(current_user)) -> FileResponse:
     return FileResponse(STATIC / "dashboard.html")
 
