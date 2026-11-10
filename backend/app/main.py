@@ -61,6 +61,16 @@ def index(user: str = Depends(current_user)) -> FileResponse:
     return FileResponse(STATIC / "index.html")
 
 
+@app.get("/console")
+def console(user: str = Depends(current_user)) -> FileResponse:
+    return FileResponse(STATIC / "console.html")
+
+
+@app.get("/api/runs")
+def list_runs(limit: int = 200, user: str = Depends(current_user)) -> list[dict]:
+    return store.list_runs(user, limit)
+
+
 @app.get("/api/health")
 def health() -> dict:
     return {"ok": True}

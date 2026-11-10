@@ -101,6 +101,18 @@ def _run(r: sqlite3.Row) -> dict:
     return d
 
 
+RUN_LIST_FIELDS = ["id", "created_at", "conv_id", "model", "question", "latency_ms", "prompt_tokens", "cache_hit_tokens",
+                   "completion_tokens", "cost_usd", "tool_calls", "skills_loaded", "error"]
+
+
+def list_runs(user: str, limit: int = 200) -> list[dict]:
+    """Newest first, this user's only, without the full trace (it can be large)."""
+    with connect() as c:
+        rows = c.execute("SELECT * FROM runs WHERE conv_id IN (SELECT id FROM conversations WHERE user = ?) "
+                         "ORDER BY id DESC LIMIT ?", (user, max(1, min(limit, 500)))).fetchall()
+    return [{k: v for k, v in _run(r).items() if k in RUN_LIST_FIELDS} for r in rows]
+
+
 CSV_FIELDS = ["id", "created_at", "conv_id", "model", "question", "latency_ms", "prompt_tokens", "cache_hit_tokens",
               "completion_tokens", "cost_usd", "tool_calls", "skills_loaded", "error", "user_email"]
 

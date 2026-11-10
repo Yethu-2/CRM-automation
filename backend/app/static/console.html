@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Komosion CRM Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --red:#D22630; --red-dark:#9B0000; --grey:#404545; --grey-soft:#646868; --grey-light:#D6D6D6;
+  --aqua:#1F8A70; --orange:#F37420; --blue:#014357;
+  --bg:#F3F3F3; --surface:#FFFFFF; --text:#262A2A; --muted:#646868; --line:#D6D6D6;
+  --ok-bg:#E3F2ED; --warn-bg:#FDEBDD; --bad-bg:#F8E1E1; --sel:#FBEDEE; --info-bg:#E0EDF1;
+  --font-head:"Lora",Georgia,serif; --font-body:"Source Sans 3","Source Sans Pro",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1E2121; --surface:#2A2E2E; --text:#ECEEEE; --muted:#A9AFAF; --line:#454B4B;
+    --ok-bg:#183A30; --warn-bg:#4A2F1B; --bad-bg:#4A2020; --sel:#3A2527; --info-bg:#173842;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1E2121; --surface:#2A2E2E; --text:#ECEEEE; --muted:#A9AFAF; --line:#454B4B;
+  --ok-bg:#183A30; --warn-bg:#4A2F1B; --bad-bg:#4A2020; --sel:#3A2527; --info-bg:#173842;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--text);font:16px/1.45 var(--font-body)}
+h1,h2,h3,h4{font-family:var(--font-head);margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--blue)}
+.app{display:grid;grid-template-columns:232px 1fr;grid-template-rows:auto 1fr;min-height:100vh}
+.topbar{grid-column:1/3;background:linear-gradient(#646868,#404545);color:#fff;padding:10px 16px;display:flex;gap:14px;align-items:center;border-bottom:4px solid var(--red)}
+.brandslot{border:1px dashed rgba(255,255,255,.55);border-radius:4px;padding:3px 10px;font-size:12px;letter-spacing:.04em;text-transform:uppercase;opacity:.85}
+.topbar h1{font-size:20px;font-weight:600;flex:1}
+.topbar input[type=search]{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:4px;padding:6px 10px;width:240px}
+.topbar input::placeholder{color:rgba(255,255,255,.75)}
+.me{font-size:13px;display:flex;align-items:center;gap:8px}
+.avatar{width:30px;height:30px;border-radius:50%;background:var(--red);display:grid;place-items:center;font-weight:700;font-size:13px}
+.ibtn{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:4px;padding:5px 9px;cursor:pointer}
+.menu{display:none}
+nav{background:var(--surface);border-right:1px solid var(--line);padding:12px 8px;overflow:auto}
+nav .grp{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:12px 10px 4px}
+nav a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;text-decoration:none;color:var(--text);font-weight:600;font-size:15px}
+nav a:hover{background:var(--bg)}
+nav a[aria-current="page"]{background:var(--sel);box-shadow:inset 4px 0 0 var(--red)}
+nav .n{margin-left:auto;font-size:12px;background:var(--red);color:#fff;border-radius:999px;padding:0 7px}
+main{padding:20px;overflow:auto;max-width:1400px;width:100%}
+.sample{background:var(--warn-bg);padding:7px 12px;border-radius:4px;font-size:14px;margin-bottom:16px}
+.ph{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.ph h2{font-size:28px;font-weight:600;flex:1}
+.ph p{margin:2px 0 0;color:var(--muted);font-size:14px;font-family:var(--font-body);width:100%}
+.grid{display:grid;gap:16px}
+.g4{grid-template-columns:repeat(4,1fr)}.g3{grid-template-columns:repeat(3,1fr)}.g2{grid-template-columns:repeat(2,1fr)}.g21{grid-template-columns:2fr 1fr}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:6px}
+.panel>h3{font-size:17px;font-weight:600;padding:12px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+.panel>h3 .sp{flex:1}
+.pb{padding:14px}
+.kpi{padding:14px}.kpi .l{font-size:13px;color:var(--muted);font-weight:600}.kpi .v{font-family:var(--font-head);font-size:30px;font-weight:600}
+.kpi .d{font-size:13px}.up{color:var(--aqua)}.down{color:var(--red-dark)}
+.badge{font-size:12px;border-radius:4px;padding:1px 8px;font-weight:600;white-space:nowrap;display:inline-block}
+.b-ok{background:var(--ok-bg);color:var(--aqua)}.b-warn{background:var(--warn-bg);color:#B24E0A}.b-bad{background:var(--bad-bg);color:var(--red-dark)}
+.b-grey{background:var(--grey-light);color:#262A2A}.b-info{background:var(--info-bg);color:var(--blue)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding:8px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr.click{cursor:pointer}tr.click:hover{background:var(--bg)}
+.tw{overflow:auto}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.toolbar input,.toolbar select,.in{padding:7px 10px;border:1px solid var(--line);border-radius:4px;background:var(--surface)}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:3px 12px;font-size:13px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--grey);border-color:var(--grey);color:#fff}
+.btn{border:1px solid var(--grey);background:var(--surface);border-radius:4px;padding:8px 14px;cursor:pointer;font-weight:600}
+.btn:hover{background:var(--bg)}.btn.primary{background:var(--red);border-color:var(--red);color:#fff}.btn.primary:hover{background:var(--red-dark)}
+.btn.ok{background:var(--aqua);border-color:var(--aqua);color:#fff}.btn.sm{padding:4px 10px;font-size:13px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+.bars{display:grid;gap:8px}.bar{display:grid;grid-template-columns:110px 1fr 70px;gap:10px;align-items:center;font-size:14px}
+.bar .t{height:12px;background:var(--grey-light);border-radius:6px;overflow:hidden}.bar .t i{display:block;height:100%;background:var(--grey)}
+.bar .t i.r{background:var(--red)}
+.spark{display:flex;align-items:flex-end;gap:6px;height:120px}.spark div{flex:1;background:var(--grey);border-radius:3px 3px 0 0;position:relative;min-height:4px}
+.spark div.cur{background:var(--red)}.spark small{position:absolute;bottom:-18px;left:0;right:0;text-align:center;font-size:11px;color:var(--muted)}
+.feed{list-style:none;margin:0;padding:0}.feed li{padding:10px 14px;border-bottom:1px solid var(--line);font-size:14px;display:flex;gap:10px}
+.feed .dot{width:9px;height:9px;border-radius:50%;margin-top:6px;flex:none;background:var(--grey-soft)}
+.feed time{color:var(--muted);font-size:12px;display:block}
+.kanban{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(230px,1fr);gap:12px;overflow:auto;padding-bottom:8px}
+.col{background:var(--bg);border:1px solid var(--line);border-radius:6px;min-height:300px;display:flex;flex-direction:column}
+.col h4{font-size:15px;padding:10px 12px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;font-weight:600}
+.col .cards{padding:8px;display:grid;gap:8px;align-content:start;flex:1}
+.col.over{outline:2px dashed var(--red)}
+.card{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--grey);border-radius:4px;padding:9px 10px;cursor:grab;font-size:14px}
+.card.hot{border-left-color:var(--red)}.card.stale{border-left-color:var(--orange)}
+.card b{display:block}.card .m{color:var(--muted);font-size:12px;display:flex;justify-content:space-between;margin-top:3px}
+.split{display:grid;grid-template-columns:minmax(300px,400px) 1fr;gap:16px}
+.list{list-style:none;margin:0;padding:0;max-height:72vh;overflow:auto}
+.row{padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer;display:grid;gap:3px}
+.row:hover{background:var(--bg)}.row[aria-selected="true"]{background:var(--sel);box-shadow:inset 4px 0 0 var(--red)}
+.row .meta{font-size:13px;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
+.diff{display:grid;grid-template-columns:130px 1fr 1fr;gap:0;border:1px solid var(--line);border-radius:4px;font-size:14px;overflow:hidden}
+.diff>div{padding:7px 10px;border-bottom:1px solid var(--line)}.diff .h{background:var(--bg);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.diff .old{background:var(--bad-bg);text-decoration:line-through;text-decoration-color:rgba(155,0,0,.5)}.diff .new{background:var(--ok-bg)}
+.quote{background:var(--bg);border-left:4px solid var(--grey);padding:10px 12px;border-radius:0 4px 4px 0;font-size:15px}
+.flag{background:var(--warn-bg);border-radius:4px;padding:8px 12px;font-size:14px}
+.stack{display:grid;gap:14px}.row2{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:14px;overflow:auto}
+.tabs button{border:0;background:none;padding:9px 14px;cursor:pointer;font-weight:600;color:var(--muted);border-bottom:3px solid transparent}
+.tabs button[aria-selected="true"]{color:var(--text);border-bottom-color:var(--red)}
+.graph{width:100%;height:380px;background:var(--bg);border:1px solid var(--line);border-radius:6px}
+.graph text{font-size:12px;fill:var(--text)}
+.chat{display:grid;grid-template-columns:1fr 340px;gap:16px;height:calc(100vh - 170px);min-height:480px}
+.chatbox{display:flex;flex-direction:column;overflow:hidden}.msgs{flex:1;overflow:auto;padding:14px;display:grid;gap:12px;align-content:start}
+.msg{max-width:85%;padding:10px 14px;border-radius:8px;font-size:15px}.msg.u{background:var(--grey);color:#fff;justify-self:end}.msg.a{background:var(--bg);border:1px solid var(--line)}
+.composer{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line)}.composer input{flex:1}
+.trace{overflow:auto}.tr{padding:8px 12px;border-bottom:1px solid var(--line);font-size:13px}.tr code{background:var(--bg);padding:0 4px;border-radius:3px}
+.sw{position:relative;display:inline-block;width:42px;height:24px}.sw input{opacity:0;width:0;height:0}
+.sw span{position:absolute;inset:0;background:var(--grey-light);border-radius:12px;cursor:pointer;transition:.15s}
+.sw span:before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.15s}
+.sw input:checked+span{background:var(--aqua)}.sw input:checked+span:before{transform:translateX(18px)}
+.sw input:focus-visible+span{outline:3px solid var(--blue);outline-offset:2px}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(440px,100%);background:var(--surface);border-left:1px solid var(--line);box-shadow:-8px 0 24px rgba(0,0,0,.18);z-index:20;overflow:auto;transform:translateX(105%);transition:transform .18s}
+.drawer.open{transform:none}.drawer header{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;position:sticky;top:0;background:var(--surface)}
+.drawer header h3{flex:1;font-size:19px}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--grey);color:#fff;padding:9px 16px;border-radius:6px;z-index:30;font-size:14px;display:none}
+.empty{padding:36px;text-align:center;color:var(--muted)}
+.hint{font-size:13px;color:var(--muted)}
+kbd{border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:0 5px;font-size:12px;background:var(--bg)}
+.sr{position:absolute;left:-9999px}
+@media (max-width:1000px){.g4{grid-template-columns:repeat(2,1fr)}.g3,.g21,.g2,.split,.chat{grid-template-columns:1fr}.chat{height:auto}.chatbox{height:60vh}}
+@media (max-width:760px){
+  .app{grid-template-columns:1fr}.topbar{grid-column:1}.menu{display:inline-block}
+  nav{display:none;position:fixed;top:56px;left:0;bottom:0;width:240px;z-index:15;box-shadow:8px 0 24px rgba(0,0,0,.2)}nav.open{display:block}
+  .topbar input[type=search]{display:none}.me span{display:none}main{padding:16px}.g4{grid-template-columns:1fr 1fr}
+  .diff{grid-template-columns:90px 1fr 1fr}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <button class="ibtn menu" id="menu" aria-label="Menu">&#9776;</button>
+    <span class="brandslot">Komosion logo</span>
+    <h1>CRM Console</h1>
+    <input type="search" id="gsearch" placeholder="Search clients, deals, people…" aria-label="Search">
+    <button class="ibtn" id="theme" aria-label="Toggle theme">&#9680;</button>
+    <div class="me"><span>Yethu</span><div class="avatar">Y</div></div>
+  </header>
+  <nav id="nav" aria-label="Main"></nav>
+  <main id="main" tabindex="-1"></main>
+</div>
+<aside class="drawer" id="drawer" aria-label="Details"></aside>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* ---------- sample data (invented; no client data) ---------- */
+const STAGES=["Lead","Qualified","Proposal","Negotiation","Won"];
+const PEOPLE=["Truc Pham","John O'Neill","Linn Htin Nyo","Yethu","Zyle Estacion"];
+const DEALS=[
+ {id:1,title:"AI discoverability audit",org:"Harbour Legal",value:18000,stage:"Proposal",owner:"Truc Pham",days:3,prob:60,next:"Send scope sheet",conf:.82},
+ {id:2,title:"Publishing agent pilot",org:"Northgate Media",value:32000,stage:"Qualified",owner:"John O'Neill",days:9,prob:40,next:"Book discovery call",conf:.7},
+ {id:3,title:"Konverter licence",org:"VLRC",value:24000,stage:"Negotiation",owner:"Truc Pham",days:2,prob:75,next:"Licence summary to client",conf:.9},
+ {id:4,title:"Website refresh",org:"Kestrel Foods",value:9500,stage:"Lead",owner:"Yethu",days:15,prob:15,next:"Qualify budget",conf:.55},
+ {id:5,title:"CRM triggers rollout",org:"Komosion (internal)",value:0,stage:"Qualified",owner:"Linn Htin Nyo",days:1,prob:50,next:"Review trigger output",conf:.88},
+ {id:6,title:"Newsletter automation",org:"Bluefin Travel",value:7200,stage:"Won",owner:"John O'Neill",days:20,prob:100,next:"Kick-off",conf:.95},
+ {id:7,title:"GEO research digest",org:"Atlas Advisory",value:14500,stage:"Proposal",owner:"Zyle Estacion",days:12,prob:45,next:"Follow up proposal",conf:.6},
+ {id:8,title:"Document extraction batch",org:"Harbour Legal",value:11000,stage:"Lead",owner:"Truc Pham",days:5,prob:20,next:"Confirm doc types",conf:.65},
+ {id:9,title:"Support chatbot",org:"Kestrel Foods",value:21000,stage:"Negotiation",owner:"John O'Neill",days:7,prob:65,next:"Pricing call",conf:.78}
+];
+const ORGS=[
+ {name:"Harbour Legal",industry:"Legal",deals:2,value:29000,health:82,last:"3 days ago",contact:"Mara Quinn"},
+ {name:"VLRC",industry:"Law reform",deals:1,value:24000,health:90,last:"2 days ago",contact:"D. Nguyen"},
+ {name:"Northgate Media",industry:"Publishing",deals:1,value:32000,health:61,last:"9 days ago",contact:"Sam Ortiz"},
+ {name:"Kestrel Foods",industry:"Food & Bev",deals:2,value:30500,health:48,last:"15 days ago",contact:"Priya Rao"},
+ {name:"Bluefin Travel",industry:"Travel",deals:1,value:7200,health:95,last:"20 days ago",contact:"Joel Tran"},
+ {name:"Atlas Advisory",industry:"Consulting",deals:1,value:14500,health:55,last:"12 days ago",contact:"Eve Laurent"}
+];
+const MEETINGS=[
+ {id:"m1",title:"Harbour Legal: scoping call",date:"Mon 9 Nov",org:"Harbour Legal",state:"pending",conf:.78,
+  quote:"“If we can get the scope sheet by Friday we can take it to the partners next week. Budget is around twenty to twenty-five.”",
+  skill:"pipeline-stage-inference",flag:"Budget range is spoken, not written anywhere. Confirm before writing it.",
+  changes:[["Stage","Qualified","Proposal"],["Deal value","(empty)","$22,500 (mid-range)"],["Next activity","(none)","Send scope sheet · Fri 13 Nov"],["Contact role","Mara Quinn","Mara Quinn · Decision influencer"]]},
+ {id:"m2",title:"Northgate Media: demo follow-up",date:"Mon 9 Nov",org:"Northgate Media",state:"pending",conf:.64,
+  quote:"“We liked the agent but legal needs to check where the content is processed.”",
+  skill:"evidence-discipline",flag:"Low confidence: a blocker was inferred. Entity match to deal #2 is probable, not certain.",
+  changes:[["Stage","Qualified","Qualified (no change)"],["Blocker","(none)","Data residency review by Northgate legal"],["Next activity","Book discovery call","Send data-handling note · Wed 11 Nov"]]},
+ {id:"m3",title:"VLRC: licence questions",date:"Fri 6 Nov",org:"VLRC",state:"pending",conf:.92,
+  quote:"“Please send us the commercial-use summary for the extraction model.”",
+  skill:"crm-action-gateway",flag:"",
+  changes:[["Next activity","Licence summary to client","Licence summary to client · due Tue 10 Nov"],["Note","(none)","Client asked about batch limits under Apache 2.0"]]},
+ {id:"m4",title:"Kestrel Foods: pricing call",date:"Thu 5 Nov",org:"Kestrel Foods",state:"approved",conf:.85,quote:"“We can start in January.”",skill:"pipeline-stage-inference",flag:"",changes:[["Close date","(empty)","31 Jan 2027"]]},
+ {id:"m5",title:"Atlas Advisory: intro",date:"Wed 4 Nov",org:"Atlas Advisory",state:"rejected",conf:.51,quote:"“Maybe next quarter.”",skill:"evidence-discipline",flag:"Rejected: too vague to move stage.",changes:[["Stage","Lead","Proposal"]]}
+];
+const SKILLS=[
+ ["company-context-brief","Builds a one-page brief of Komosion and the client before any recommendation.","on",412],
+ ["context-package-builder","Bundles the right notes, emails and deal fields into one package for the model.","on",388],
+ ["contextual-assessment","Scores a deal against the 12 commercial criteria.","on",305],
+ ["crm-action-gateway","Turns recommendations into change plans; nothing is written without approval.","on",501],
+ ["crm-config-audit","Checks pipeline stages, custom fields and required data for gaps.","on",44],
+ ["decision-governance","Records who approved what and why.","on",207],
+ ["entity-resolution","Matches people and organisations across email, meetings and Pipedrive.","on",466],
+ ["evidence-discipline","Always loaded. Every claim needs a source or is marked as inference.","locked",1024],
+ ["evidence-intake-normaliser","Cleans transcripts and emails into comparable evidence items.","on",398],
+ ["human-review-capture","Captures reviewer edits and reasons for later learning.","on",219],
+ ["lead-prospecting","Finds and ranks look-alike prospects from won deals.","off",31],
+ ["pipeline-stage-inference","Infers stage movement from meeting evidence.","on",377],
+ ["recommendation-evaluator","Checks a recommendation against 12 acceptance criteria.","on",290]
+];
+const RUNS=[
+ ["14:02","Truc Pham","Which deals have no next activity?","deepseek-flash",3,2,"$0.004","6.1s","ok"],
+ ["13:40","Yethu","Summarise Harbour Legal before tomorrow's call","deepseek-v4-pro",5,4,"$0.031","19.4s","ok"],
+ ["11:15","John O'Neill","Draft change plan for Northgate after demo","deepseek-v4-pro",6,3,"$0.044","24.0s","ok"],
+ ["10:02","Linn Htin Nyo","Why did Kestrel health drop?","deepseek-flash",2,3,"$0.006","7.8s","ok"],
+ ["09:20","Zyle Estacion","Update Atlas to Proposal","deepseek-flash",1,1,"$0.001","2.2s","blocked"]
+];
+const ACTIVITY=[
+ ["Trigger fired: Harbour Legal scoping call produced a change plan","9 Nov 15:10","var(--red)"],
+ ["Truc approved: Kestrel Foods close date","9 Nov 11:42","var(--aqua)"],
+ ["Blocked write attempt (Atlas Advisory stage) · read-only guard","9 Nov 09:20","var(--orange)"],
+ ["Pipedrive sync: 214 deals, 96 people, 41 organisations","9 Nov 07:00","var(--grey-soft)"],
+ ["Atlas intro change rejected: too vague","8 Nov 16:05","var(--red-dark)"]
+];
+const MEMORY={
+ nodes:[{id:"Harbour Legal",x:300,y:190,t:"org"},{id:"Mara Quinn",x:140,y:90,t:"person"},{id:"AI audit",x:470,y:90,t:"deal"},{id:"Doc extraction",x:470,y:290,t:"deal"},
+  {id:"Budget 20–25k",x:130,y:290,t:"fact"},{id:"Partner sign-off",x:300,y:55,t:"fact"},{id:"Truc Pham",x:610,y:190,t:"person"},{id:"Scope sheet",x:300,y:335,t:"task"}],
+ edges:[[0,1,"works at"],[0,2,"has deal"],[0,3,"has deal"],[1,4,"said"],[0,5,"requires"],[2,6,"owned by"],[3,6,"owned by"],[2,7,"needs"],[5,2,"gates"]]
+};
+const COL={org:"#404545",person:"#014357",deal:"#D22630",fact:"#1F8A70",task:"#F37420"};
+
+/* ---------- helpers ---------- */
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const money=n=>"$"+n.toLocaleString("en-US");
+function toast(t){const e=$("#toast");e.textContent=t;e.style.display="block";clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display="none",2200)}
+const pendingCount=()=>MEETINGS.filter(m=>m.state==="pending").length;
+const stBadge=s=>({pending:"b-grey",approved:"b-ok",rejected:"b-bad",redo:"b-warn"}[s]);
+
+/* ---------- navigation ---------- */
+const ROUTES=[
+ ["Work",null],["overview","Overview","▦"],["pipeline","Pipeline","☰"],["deals","Deals","$"],["clients","Clients","⌂"],
+ ["Automation",null],["review","Review queue","✓"],["triggers","Triggers","⚡"],["memory","Client memory","◎"],["skills","Skills","✦"],
+ ["Assistant",null],["chat","Ask the CRM","✉"],["runs","Run log","≡"],
+ ["Admin",null],["connections","Connections","⇄"],["settings","Settings","⚙"]
+];
+function buildNav(){
+  const cur=location.hash.slice(1)||"overview";
+  $("#nav").innerHTML=ROUTES.map(r=>r[1]===null?`<div class="grp">${r[0]}</div>`:
+   `<a href="${r[0]==="chat"?"./":"#"+r[0]}" ${cur===r[0]?'aria-current="page"':''}><span aria-hidden="true">${r[2]}</span>${r[1]}${r[0]==="review"&&pendingCount()?`<span class="n">${pendingCount()}</span>`:""}</a>`).join("");
+}
+const VIEWS={};
+function render(){
+  const id=(location.hash.slice(1)||"overview").split("/")[0];
+  buildNav();$("#nav").classList.remove("open");
+  const v=VIEWS[id]||VIEWS.overview;
+  $("#main").innerHTML=`<div class="sample">${LIVE.ok?"Run log, Skills and Connections are live. Pipeline, Deals, Clients, Review, Triggers and Memory still show invented sample data until they are wired to Pipedrive.":"Could not reach the API, so everything shown here is invented sample data."}</div>`+v();
+  (VIEWS[id+"_init"]||(()=>{}))();
+  closeDrawer();
+}
+window.addEventListener("hashchange",()=>{render();$("#main").focus()});
+$("#menu").onclick=()=>$("#nav").classList.toggle("open");
+$("#theme").onclick=()=>{const r=document.documentElement,d=r.dataset.theme==="dark"||(!r.dataset.theme&&matchMedia("(prefers-color-scheme: dark)").matches);r.dataset.theme=d?"light":"dark"};
+$("#gsearch").addEventListener("keydown",e=>{if(e.key==="Enter"){sessionStorage.q=e.target.value;location.hash="deals";}});
+
+function header(t,sub,actions=""){return `<div class="ph"><h2>${t}</h2><div class="row2">${actions}</div><p>${sub}</p></div>`}
+
+/* ---------- overview ---------- */
+VIEWS.overview=()=>{
+  const open=DEALS.filter(d=>d.stage!=="Won"),pipe=open.reduce((a,d)=>a+d.value,0),w=open.reduce((a,d)=>a+d.value*d.prob/100,0);
+  const byStage=STAGES.map(s=>[s,DEALS.filter(d=>d.stage===s).reduce((a,d)=>a+d.value,0),DEALS.filter(d=>d.stage===s).length]);
+  const mx=Math.max(...byStage.map(x=>x[1]));
+  const months=[["Jun",8],["Jul",12],["Aug",9],["Sep",15],["Oct",18],["Nov",11]];
+  return header("Overview","This week across the pipeline, automations and the assistant.",`<button class="btn primary" onclick="location.hash='review'">Review ${pendingCount()} changes</button>`)+`
+  <div class="grid g4" style="margin-bottom:16px">
+   <div class="panel kpi"><div class="l">Open pipeline</div><div class="v">${money(pipe)}</div><div class="d up">▲ 12% vs last week</div></div>
+   <div class="panel kpi"><div class="l">Weighted forecast</div><div class="v">${money(Math.round(w))}</div><div class="d up">▲ 4%</div></div>
+   <div class="panel kpi"><div class="l">Awaiting review</div><div class="v">${pendingCount()}</div><div class="d">oldest 1 day</div></div>
+   <div class="panel kpi"><div class="l">Stale deals (&gt;10 days)</div><div class="v">${DEALS.filter(d=>d.days>10&&d.stage!=="Won").length}</div><div class="d down">▲ 1 since Friday</div></div>
+  </div>
+  <div class="grid g21" style="margin-bottom:16px">
+   <div class="panel"><h3>Pipeline by stage</h3><div class="pb bars">${byStage.map(([s,v,c])=>`<div class="bar"><span>${s}</span><div class="t"><i class="${s==="Won"?"":"r"}" style="width:${mx?v/mx*100:0}%"></i></div><span>${money(v)} · ${c}</span></div>`).join("")}</div></div>
+   <div class="panel"><h3>Automation health</h3><div class="pb stack">
+     <div class="row2"><span class="badge b-ok">Pipedrive</span>Connected · read-only</div>
+     <div class="row2"><span class="badge b-ok">Triggers</span>3 of 3 active</div>
+     <div class="row2"><span class="badge b-warn">Google</span>Off until the team agrees</div>
+     <div class="row2"><span class="badge b-info">Cost today</span>$0.086 · 17 runs</div></div></div>
+  </div>
+  <div class="grid g2">
+   <div class="panel"><h3>Review decisions per month</h3><div class="pb"><div class="spark" style="margin-bottom:24px">${months.map(([m,v],i)=>`<div class="${i===5?"cur":""}" style="height:${v/18*100}%" title="${v}"><small>${m}</small></div>`).join("")}</div></div></div>
+   <div class="panel"><h3>Recent activity</h3><ul class="feed">${ACTIVITY.map(a=>`<li><span class="dot" style="background:${a[2]}"></span><div>${a[0]}<time>${a[1]}</time></div></li>`).join("")}</ul></div>
+  </div>`;
+};
+
+/* ---------- pipeline (kanban) ---------- */
+VIEWS.pipeline=()=>header("Pipeline","Drag a card to propose a stage change. Changes go to the review queue; nothing is written to Pipedrive.",
+ `<select class="in" id="pf" aria-label="Owner"><option value="">All owners</option>${PEOPLE.map(p=>`<option>${p}</option>`).join("")}</select>`)+`<div class="kanban" id="kb"></div>`;
+VIEWS.pipeline_init=()=>{
+  const draw=()=>{
+    const f=$("#pf").value;
+    $("#kb").innerHTML=STAGES.map(s=>{const ds=DEALS.filter(d=>d.stage===s&&(!f||d.owner===f));
+     return `<div class="col" data-s="${s}"><h4>${s}<span>${money(ds.reduce((a,d)=>a+d.value,0))}</span></h4><div class="cards">${ds.map(d=>`<div class="card ${d.days>10?"stale":d.prob>=65?"hot":""}" draggable="true" data-id="${d.id}" tabindex="0"><b>${esc(d.title)}</b>${esc(d.org)}<div class="m"><span>${money(d.value)}</span><span>${d.days}d idle</span></div></div>`).join("")||'<div class="hint">No deals</div>'}</div></div>`}).join("");
+    $$(".card").forEach(c=>{c.ondragstart=e=>e.dataTransfer.setData("id",c.dataset.id);c.onclick=()=>openDeal(+c.dataset.id);c.onkeydown=e=>{if(e.key==="Enter")openDeal(+c.dataset.id)}});
+    $$(".col").forEach(c=>{c.ondragover=e=>{e.preventDefault();c.classList.add("over")};c.ondragleave=()=>c.classList.remove("over");
+      c.ondrop=e=>{e.preventDefault();c.classList.remove("over");const d=DEALS.find(x=>x.id==e.dataTransfer.getData("id"));if(d&&d.stage!==c.dataset.s){
+        MEETINGS.unshift({id:"p"+Date.now(),title:`Manual: ${d.title}`,date:"Today",org:d.org,state:"pending",conf:1,quote:"Proposed by a person in the pipeline board.",skill:"human-review-capture",flag:"",changes:[["Stage",d.stage,c.dataset.s]]});
+        toast(`Stage change for “${d.title}” sent to review`);buildNav()}}});
+  };
+  $("#pf").onchange=draw;draw();
+};
+
+/* ---------- deals table ---------- */
+VIEWS.deals=()=>header("Deals","All deals with the assistant's confidence in the data.",`<button class="btn" onclick="exportCSV()">Export CSV</button>`)+`
+ <div class="toolbar"><input id="dq" type="search" placeholder="Filter deals" aria-label="Filter deals" value="${esc(sessionStorage.q||"")}">
+ <select id="ds" class="in" aria-label="Stage"><option value="">All stages</option>${STAGES.map(s=>`<option>${s}</option>`).join("")}</select>
+ <span class="hint" id="dc"></span></div>
+ <div class="panel tw"><table><thead><tr><th>Deal</th><th>Client</th><th>Stage</th><th>Value</th><th>Owner</th><th>Idle</th><th>Data confidence</th></tr></thead><tbody id="dt"></tbody></table></div>`;
+VIEWS.deals_init=()=>{
+  let sort="value",dir=-1;
+  const draw=()=>{const q=$("#dq").value.toLowerCase(),s=$("#ds").value;
+   const r=DEALS.filter(d=>(!s||d.stage===s)&&(!q||(d.title+d.org+d.owner).toLowerCase().includes(q))).sort((a,b)=>(a[sort]>b[sort]?1:-1)*dir);
+   $("#dc").textContent=r.length+" deals";
+   $("#dt").innerHTML=r.map(d=>`<tr class="click" data-id="${d.id}" tabindex="0"><td><b>${esc(d.title)}</b></td><td>${esc(d.org)}</td><td><span class="badge ${d.stage==="Won"?"b-ok":"b-grey"}">${d.stage}</span></td><td>${money(d.value)}</td><td>${esc(d.owner)}</td><td>${d.days>10?`<span class="badge b-warn">${d.days}d</span>`:d.days+"d"}</td><td><span class="badge ${d.conf>.8?"b-ok":d.conf>.65?"b-warn":"b-bad"}">${Math.round(d.conf*100)}%</span></td></tr>`).join("")||`<tr><td colspan="7" class="empty">No match</td></tr>`;
+   $$("#dt tr.click").forEach(t=>{t.onclick=()=>openDeal(+t.dataset.id);t.onkeydown=e=>{if(e.key==="Enter")openDeal(+t.dataset.id)}})};
+  $("#dq").oninput=draw;$("#ds").onchange=draw;
+  $$("th").forEach((th,i)=>th.onclick=()=>{const k=["title","org","stage","value","owner","days","conf"][i];dir=sort===k?-dir:1;sort=k;draw()});
+  sessionStorage.removeItem("q");draw();
+};
+function exportCSV(){const h="id,title,client,stage,value,owner,idle_days\n"+DEALS.map(d=>[d.id,d.title,d.org,d.stage,d.value,d.owner,d.days].map(x=>`"${x}"`).join(",")).join("\n");
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([h],{type:"text/csv"}));a.download="deals-sample.csv";a.click();toast("Exported sample CSV")}
+
+/* ---------- deal drawer ---------- */
+function openDeal(id){
+  const d=DEALS.find(x=>x.id===id),dr=$("#drawer");
+  dr.innerHTML=`<header><h3>${esc(d.title)}</h3><button class="btn sm" id="dx" aria-label="Close">Close</button></header>
+  <div class="pb stack">
+   <div class="row2"><span class="badge b-grey">${d.stage}</span><span class="badge b-info">${d.prob}% likely</span><b>${money(d.value)}</b></div>
+   <div><div class="hint">Client</div>${esc(d.org)}</div><div><div class="hint">Owner</div>${esc(d.owner)}</div>
+   <div class="flag">Next step suggested: <b>${esc(d.next)}</b></div>
+   <h4>Evidence trail</h4>
+   <ul class="feed" style="border:1px solid var(--line);border-radius:4px"><li><span class="dot" style="background:var(--aqua)"></span><div>Meeting transcript: scope agreed<time>9 Nov · source: transcript</time></div></li>
+   <li><span class="dot" style="background:var(--orange)"></span><div>Budget inferred from a spoken range<time>9 Nov · inference, not confirmed</time></div></li>
+   <li><span class="dot" style="background:var(--grey-soft)"></span><div>Stage set by Truc<time>2 Nov · manual</time></div></li></ul>
+   <div class="row2"><button class="btn primary" onclick="location.href='./'">Ask the assistant</button><button class="btn" onclick="location.hash='memory'">Open memory</button></div>
+  </div>`;
+  dr.classList.add("open");$("#dx").onclick=closeDrawer;$("#dx").focus();
+}
+function closeDrawer(){$("#drawer").classList.remove("open")}
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDrawer()});
+
+/* ---------- clients ---------- */
+VIEWS.clients=()=>header("Clients","Organisations with a relationship health score built from recency, stage movement and evidence quality.")+`
+ <div class="grid g3">${ORGS.map(o=>`<div class="panel"><div class="pb stack"><div class="row2"><h3 style="flex:1">${esc(o.name)}</h3><span class="badge ${o.health>75?"b-ok":o.health>55?"b-warn":"b-bad"}">${o.health}</span></div>
+  <div class="hint">${o.industry} · ${o.contact}</div><div class="row2"><b>${money(o.value)}</b><span class="hint">${o.deals} deal${o.deals>1?"s":""}</span></div>
+  <div class="bar" style="grid-template-columns:1fr"><div class="t"><i class="${o.health<55?"r":""}" style="width:${o.health}%"></i></div></div>
+  <div class="hint">Last contact ${o.last}</div></div></div>`).join("")}</div>`;
+
+/* ---------- review queue ---------- */
+let selM="m1";
+VIEWS.review=()=>header("Review queue","Each meeting produces a change plan. Approve, edit, redo or reject before anything is written. <kbd>A</kbd> approve · <kbd>R</kbd> reject · <kbd>J</kbd>/<kbd>K</kbd> next/previous",
+ `<span class="badge b-warn">${pendingCount()} pending</span>`)+`
+ <div class="toolbar" id="rf">${["all","pending","approved","rejected"].map(s=>`<button class="chip" aria-pressed="${s==="pending"}" data-f="${s}">${s[0].toUpperCase()+s.slice(1)}</button>`).join("")}</div>
+ <div class="split"><div class="panel"><ul class="list" id="rl" role="listbox" aria-label="Meetings"></ul></div><div class="panel" id="rd"></div></div>`;
+VIEWS.review_init=()=>{
+  let f="pending";
+  const vis=()=>MEETINGS.filter(m=>f==="all"||m.state===f);
+  const draw=()=>{
+    const v=vis();if(!v.find(m=>m.id===selM)&&v.length)selM=v[0].id;
+    $("#rl").innerHTML=v.map(m=>`<li class="row" role="option" tabindex="0" data-id="${m.id}" aria-selected="${m.id===selM}"><b>${esc(m.title)}</b><div class="meta"><span>${m.date}</span><span class="badge ${stBadge(m.state)}">${m.state}</span></div></li>`).join("")||`<li class="empty">Nothing here.</li>`;
+    $$("#rl .row").forEach(r=>{r.onclick=()=>{selM=r.dataset.id;draw()};r.onkeydown=e=>{if(e.key==="Enter")r.click()}});
+    const m=MEETINGS.find(x=>x.id===selM);
+    if(!m){$("#rd").innerHTML=`<div class="empty">Queue is clear.</div>`;buildNav();return}
+    $("#rd").innerHTML=`<div class="pb stack">
+     <div class="row2"><h3 style="flex:1">${esc(m.title)}</h3><span class="badge ${stBadge(m.state)}">${m.state}</span></div>
+     <div class="hint">Skill used: <code>${m.skill}</code> · Confidence ${Math.round(m.conf*100)}%</div>
+     <div class="quote">${esc(m.quote)}</div>
+     ${m.flag?`<div class="flag">${esc(m.flag)}</div>`:""}
+     <div class="diff"><div class="h">Field</div><div class="h">Now in Pipedrive</div><div class="h">Proposed</div>
+       ${m.changes.map(c=>`<div><b>${c[0]}</b></div><div class="old">${esc(c[1])}</div><div class="new"><input class="in" style="width:100%;background:transparent;border:0;padding:0" value="${esc(c[2])}" aria-label="Proposed ${c[0]}" ${m.state!=="pending"?"disabled":""}></div>`).join("")}</div>
+     ${m.state==="pending"?`<div class="row2"><button class="btn ok" data-a="approved">Approve</button><button class="btn" data-a="redo">Redo with note</button><button class="btn primary" data-a="rejected">Reject</button>
+       <input class="in" id="why" placeholder="Reason (needed to reject or redo)" style="flex:1;min-width:180px" aria-label="Reason"></div>
+       <div class="hint">Approving records a change plan for a person to apply. The app has no write access to Pipedrive.</div>`:`<div class="hint">Decision recorded by Yethu.</div>`}
+    </div>`;
+    $$("#rd [data-a]").forEach(b=>b.onclick=()=>decide(b.dataset.a));
+    buildNav();
+  };
+  const decide=a=>{const m=MEETINGS.find(x=>x.id===selM);if(!m||m.state!=="pending")return;
+    if(a!=="approved"&&!$("#why").value.trim()){$("#why").focus();toast("Add a reason first");return}
+    m.state=a==="redo"?"pending":a;if(a==="redo"){m.flag="Redo requested: "+$("#why").value;toast("Sent back to the model with your note")}else toast(a==="approved"?"Approved: change plan saved":"Rejected");
+    const v=vis();if(f==="pending"&&a!=="redo"){const n=v.find(x=>x.id!==m.id);if(n)selM=n.id}draw()};
+  $$("#rf .chip").forEach(c=>c.onclick=()=>{f=c.dataset.f;$$("#rf .chip").forEach(x=>x.setAttribute("aria-pressed",x===c));draw()});
+  VIEWS._key=e=>{if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName))return;const v=vis(),i=v.findIndex(x=>x.id===selM);
+    if(e.key==="a")decide("approved");else if(e.key==="r"){const w=$("#why");if(w){w.focus();e.preventDefault()}}
+    else if(e.key==="j"&&v[i+1]){selM=v[i+1].id;draw()}else if(e.key==="k"&&v[i-1]){selM=v[i-1].id;draw()}};
+  draw();
+};
+document.addEventListener("keydown",e=>{if((location.hash.slice(1)||"")==="review"&&VIEWS._key)VIEWS._key(e)});
+
+/* ---------- triggers ---------- */
+const TRIG=[
+ ["Meeting transcript arrives","A new transcript tied to a client","Infer stage, next activity, blockers","Review queue",true,"2h ago",14],
+ ["Email thread goes quiet","No reply for 7 days on an open deal","Draft a follow-up change plan","Review queue",true,"1d ago",5],
+ ["Deal idle over 10 days","No activity logged","Flag in Overview, suggest next step","Overview only",true,"3d ago",9],
+ ["New lead from website form","Form submitted","Resolve entity, propose a lead","Review queue",false,"never",0]
+];
+VIEWS.triggers=()=>header("Triggers","What starts an automation. Triggers only ever create a plan; a person approves.",`<button class="btn primary" onclick="toast('Trigger builder is not in the prototype')">New trigger</button>`)+`
+ <div class="panel tw"><table><thead><tr><th>On</th><th>When</th><th>Does</th><th>Output</th><th>Last run</th><th>Runs (30d)</th><th>Active</th></tr></thead><tbody>
+ ${TRIG.map((t,i)=>`<tr><td><b>${t[0]}</b></td><td>${t[1]}</td><td>${t[2]}</td><td><span class="badge b-info">${t[3]}</span></td><td>${t[5]}</td><td>${t[6]}</td><td><label class="sw"><input type="checkbox" ${t[4]?"checked":""} data-i="${i}" aria-label="Toggle ${t[0]}"><span></span></label></td></tr>`).join("")}</tbody></table></div>
+ <div class="panel" style="margin-top:16px"><h3>Pipeline of one trigger</h3><div class="pb row2" style="gap:6px">${["Transcript","Match client","Load skills","Draft change plan","Evaluate (12 criteria)","Human review","Plan saved"].map((s,i,a)=>`<span class="badge ${i===5?"b-warn":"b-grey"}" style="padding:6px 12px">${s}</span>${i<a.length-1?"<span aria-hidden='true'>→</span>":""}`).join("")}</div></div>`;
+VIEWS.triggers_init=()=>$$(".sw input").forEach(c=>c.onchange=()=>toast(`${TRIG[c.dataset.i][0]}: ${c.checked?"on":"off"}`));
+
+/* ---------- memory graph ---------- */
+VIEWS.memory=()=>header("Client memory","What the system remembers about each client, with its source. Redesign pending (graph memory).",`<select class="in" aria-label="Client"><option>Harbour Legal</option><option>VLRC</option><option>Kestrel Foods</option></select>`)+`
+ <div class="grid g21"><div class="panel"><h3>Graph <span class="sp"></span>${Object.entries(COL).map(([k,c])=>`<span class="hint"><span style="color:${c}">●</span> ${k}</span>`).join(" ")}</h3>
+ <div class="pb"><svg class="graph" viewBox="0 0 740 380" role="img" aria-label="Memory graph for Harbour Legal">${MEMORY.edges.map(([a,b,l])=>{const A=MEMORY.nodes[a],B=MEMORY.nodes[b];return `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="#9aa0a0" stroke-width="1.5"/><text x="${(A.x+B.x)/2}" y="${(A.y+B.y)/2-4}" text-anchor="middle" style="font-size:10px;fill:var(--muted)">${l}</text>`}).join("")}
+ ${MEMORY.nodes.map(n=>`<g tabindex="0" class="nd" data-n="${n.id}" style="cursor:pointer"><circle cx="${n.x}" cy="${n.y}" r="22" fill="${COL[n.t]}"/><text x="${n.x}" y="${n.y+38}" text-anchor="middle">${n.id}</text></g>`).join("")}</svg></div></div>
+ <div class="panel"><h3>Facts</h3><ul class="feed" id="facts"><li><span class="dot" style="background:var(--aqua)"></span><div>Click a node to see its source.</div></li></ul></div></div>`;
+VIEWS.memory_init=()=>$$(".nd").forEach(g=>{const f=()=>{$("#facts").innerHTML=`<li><span class="dot" style="background:${COL[MEMORY.nodes.find(n=>n.id===g.dataset.n).t]}"></span><div><b>${g.dataset.n}</b><time>Source: meeting 9 Nov, 00:14:22 · confidence 78%</time></div></li><li><span class="dot"></span><div>Linked to ${MEMORY.edges.filter(e=>MEMORY.nodes[e[0]].id===g.dataset.n||MEMORY.nodes[e[1]].id===g.dataset.n).length} other items</div></li>`};g.onclick=f;g.onkeydown=e=>{if(e.key==="Enter")f()}});
+
+/* ---------- live data ---------- */
+const LIVE={ok:false,cfg:null,runs:[]};
+async function load(){
+  try{const [c,r]=await Promise.all([fetch("api/config"),fetch("api/runs")]);
+    if(!c.ok||!r.ok)throw 0;LIVE.cfg=await c.json();LIVE.runs=await r.json();LIVE.ok=true}catch(e){LIVE.ok=false}
+}
+const when=t=>new Date(t*1000).toLocaleString([], {day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
+
+/* ---------- skills ---------- */
+VIEWS.skills=()=>{
+  const list=LIVE.ok?LIVE.cfg.skills.map(s=>[s.name,s.description,s.always_loaded]):SKILLS.map(s=>[s[0],s[1],s[2]==="locked"]);
+  const used={};LIVE.runs.forEach(r=>r.skills_loaded.forEach(n=>used[n]=(used[n]||0)+1));
+  return header("Skills","The Komosion skill set the assistant can load. Source: crm-skillsets. Read-only here; change skills upstream.")+`
+  <div class="grid g3">${list.map(s=>`<div class="panel"><div class="pb stack"><div class="row2"><h4 style="flex:1">${esc(s[0])}</h4>${s[2]?'<span class="badge b-info">always on</span>':'<span class="badge b-grey">on demand</span>'}</div><div style="font-size:14px">${esc(s[1])}</div><div class="hint">${LIVE.ok?`Loaded in ${used[s[0]]||0} of your runs`:""}</div></div></div>`).join("")}</div>`;
+};
+
+/* ---------- run log ---------- */
+VIEWS.runs=()=>{
+  const R=LIVE.runs,cost=R.reduce((a,r)=>a+(r.cost_usd||0),0),avg=R.length?R.reduce((a,r)=>a+(r.latency_ms||0),0)/R.length/1000:0,err=R.filter(r=>r.error).length;
+  return header("Run log","Every answer, with tokens, cost and time. Yours only.",`<a class="btn" href="api/runs.csv">Download CSV</a>`)+`
+  <div class="grid g4" style="margin-bottom:16px"><div class="panel kpi"><div class="l">Runs</div><div class="v">${R.length}</div></div><div class="panel kpi"><div class="l">Cost</div><div class="v">$${cost.toFixed(3)}</div></div><div class="panel kpi"><div class="l">Avg time</div><div class="v">${avg.toFixed(1)}s</div></div><div class="panel kpi"><div class="l">Errors</div><div class="v">${err}</div></div></div>
+  <div class="panel tw"><table><thead><tr><th>Time</th><th>Question</th><th>Model</th><th>Skills</th><th>Calls</th><th>Tokens in/out</th><th>Cost</th><th>Time</th><th>Result</th></tr></thead><tbody>${R.map(r=>`<tr><td>${when(r.created_at)}</td><td>${esc(r.question)}</td><td>${esc(r.model||"")}</td><td>${r.skills_loaded.length}</td><td>${r.tool_calls}</td><td>${r.prompt_tokens??"-"} / ${r.completion_tokens??"-"}</td><td>${r.cost_usd!=null?"$"+r.cost_usd.toFixed(4):"-"}</td><td>${r.latency_ms!=null?(r.latency_ms/1000).toFixed(1)+"s":"-"}</td><td><span class="badge ${r.error?"b-bad":"b-ok"}">${r.error?"error":"ok"}</span></td></tr>`).join("")||`<tr><td colspan="9" class="empty">No runs yet. Ask a question in the chat.</td></tr>`}</tbody></table></div>`;
+};
+
+/* ---------- connections ---------- */
+VIEWS.connections=()=>{
+  const c=LIVE.cfg||{pipedrive:{},google:{}},p=c.pipedrive||{},g=c.google||{};
+  const cards=[
+   ["Pipedrive",p.connected?`Connected${p.account?" as "+esc(p.account):""} · read-only (${esc(p.kind||"oauth")})`:p.available?"Not connected. Connect it in the chat sidebar.":"Not configured on the server.",p.connected?"ok":"warn"],
+   ["Google (Gmail, Drive, Calendar)",g.connected?`Connected${g.account?" as "+esc(g.account):""} · read-only`:g.available?"Available but not connected.":"Off. Email and document content would be sent to DeepSeek's API, so the team must agree first.",g.connected?"ok":"warn"],
+   ["DeepSeek API",c.deepseek_configured?"Key set on the server.":"No key set.",c.deepseek_configured?"ok":"bad"]];
+  return header("Connections","Each person connects their own accounts. Tokens are stored encrypted.",`<a class="btn primary" href="./">Manage in chat</a>`)+`
+  <div class="grid g3">${cards.map(k=>`<div class="panel"><div class="pb stack"><div class="row2"><h3 style="flex:1">${k[0]}</h3><span class="badge b-${k[2]}">${k[2]==="ok"?"Connected":"Off"}</span></div><div style="font-size:14px">${k[1]}</div></div></div>`).join("")}</div>
+  <div class="panel" style="margin-top:16px"><h3>Safety</h3><div class="pb stack"><div class="row2"><span class="badge b-ok">Read-only</span>Only read tools are offered; any other call is refused before it reaches Pipedrive.</div><div class="row2"><span class="badge b-ok">Per user</span>Chats and runs are scoped to your sign-in.</div><div class="row2"><span class="badge b-ok">No admin scopes</span>Admin, mail and mail-sending are never requested.</div></div></div>`;
+};
+
+/* ---------- settings ---------- */
+VIEWS.settings=()=>header("Settings","Defaults for review, models and the team.")+`
+ <div class="grid g2"><div class="panel"><h3>Review</h3><div class="pb stack">
+  <label>Auto-flag below confidence <input class="in" type="number" value="70" min="0" max="100" style="width:80px"> %</label>
+  <label class="row2"><span class="sw"><input type="checkbox" checked><span></span></span> Require a reason to reject</label>
+  <label class="row2"><span class="sw"><input type="checkbox" checked><span></span></span> Show spoken-only numbers as unconfirmed</label></div></div>
+ <div class="panel"><h3>Models and cost</h3><div class="pb stack">
+  <label>Default model <select class="in"><option>deepseek-flash</option><option>deepseek-v4-pro</option></select></label>
+  <label>Daily cost alert <input class="in" type="number" value="5" style="width:80px"> USD</label></div></div>
+ <div class="panel"><h3>Team</h3><div class="tw"><table><thead><tr><th>Person</th><th>Role</th><th>Pipedrive</th></tr></thead><tbody>${PEOPLE.map((p,i)=>`<tr><td>${p}</td><td>${["Lead","Director","Builder","Builder","Builder"][i]}</td><td><span class="badge ${i<4?"b-ok":"b-warn"}">${i<4?"connected":"not yet"}</span></td></tr>`).join("")}</tbody></table></div></div>
+ <div class="panel"><h3>Data</h3><div class="pb stack"><div class="hint">Run log retention</div><select class="in"><option>90 days</option><option>1 year</option></select><button class="btn" onclick="toast('Not in the prototype')">Export all my chats</button></div></div></div>`;
+
+load().then(render);
+</script>
+</body>
+</html>
