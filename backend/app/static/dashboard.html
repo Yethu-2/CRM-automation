@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Komosion CRM · Dashboard</title>
+<style>
+:root {
+  --bg: #f7f6f3; --panel: #ffffff; --ink: #1f1e1c; --muted: #6b6862; --line: #e4e1da;
+  --accent: #b5532f; --accent-soft: #f6e7df; --user: #efece6; --ok: #2f7d4f; --ok-soft: #e3f1e8; --bad: #b3261e; --bad-soft: #f8e3e1; --warn: #8a6d00; --warn-soft: #f7efcf;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --bg: #1b1a18; --panel: #232220; --ink: #ecebe7; --muted: #a29f98; --line: #34322e;
+  --accent: #e0835c; --accent-soft: #3a2a22; --user: #2d2b28; --ok: #6cc28f; --ok-soft: #1f3327; --bad: #f08a80; --bad-soft: #3a2220; --warn: #e3c35a; --warn-soft: #353018; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { position: sticky; top: 0; z-index: 2; display: flex; gap: 14px; align-items: center; padding: 10px 22px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.brand { font-weight: 650; } .brand small { color: var(--muted); font-weight: 400; margin-left: 6px; }
+nav { display: flex; gap: 4px; flex: 1; flex-wrap: wrap; }
+nav button { border: 0; background: transparent; } nav button.on { background: var(--user); font-weight: 600; }
+a { color: var(--accent); }
+button, input, select, textarea { font: inherit; color: var(--ink); }
+button { cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); padding: 6px 11px; }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button.ok { background: var(--ok); color: #fff; border-color: var(--ok); }
+button.bad { color: var(--bad); }
+button:disabled { opacity: .5; cursor: default; }
+input, select, textarea { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); padding: 6px 9px; }
+textarea { width: 100%; resize: vertical; }
+main { max-width: 1180px; margin: 0 auto; padding: 22px; }
+h2 { font-size: 18px; margin: 0 0 4px; } .sub { color: var(--muted); margin: 0 0 18px; font-size: 14px; }
+.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin-bottom: 18px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.kpi .n { font-size: 26px; font-weight: 650; } .kpi .l { color: var(--muted); font-size: 13px; }
+.kpi.hot { border-color: var(--accent); } .kpi.hot .n { color: var(--accent); }
+.cols { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); margin-bottom: 18px; }
+.card h3 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.conn { display: flex; align-items: center; gap: 8px; padding: 5px 0; } .conn .s { margin-left: auto; color: var(--muted); font-size: 13px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); } .dot.on { background: var(--ok); }
+.bar { display: grid; grid-template-columns: 170px 1fr 34px; gap: 8px; align-items: center; font-size: 13px; margin: 4px 0; }
+.bar .t { height: 8px; border-radius: 4px; background: var(--accent); } .bar .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; } th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.chip { display: inline-block; font-size: 12px; border-radius: 999px; padding: 1px 9px; background: var(--user); color: var(--muted); white-space: nowrap; }
+.chip.pending_review { background: var(--accent-soft); color: var(--accent); } .chip.approved, .chip.high { background: var(--ok-soft); color: var(--ok); }
+.chip.rejected, .chip.failed, .chip.low { background: var(--bad-soft); color: var(--bad); } .chip.redo, .chip.medium, .chip.unindexed { background: var(--warn-soft); color: var(--warn); }
+.chip.client { background: var(--accent-soft); color: var(--accent); }
+.list { display: grid; gap: 12px; }
+.item .top { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; } .item .top b { font-size: 15.5px; }
+.item .meta { color: var(--muted); font-size: 13px; margin-left: auto; }
+.item .acts { margin-top: 10px; }
+details summary { cursor: pointer; color: var(--muted); font-size: 13px; margin-top: 8px; }
+pre { white-space: pre-wrap; background: var(--bg); border-radius: 8px; padding: 10px; font: 12.5px/1.5 ui-monospace, Menlo, monospace; margin: 6px 0 0; }
+.notice { padding: 9px 12px; border-radius: 8px; font-size: 13.5px; margin: 10px 0 0; }
+.notice.info { background: var(--accent-soft); color: var(--accent); } .notice.ok { background: var(--ok-soft); color: var(--ok); } .notice.bad { background: var(--bad-soft); color: var(--bad); }
+.form { display: grid; gap: 8px; grid-template-columns: 2fr 1fr 2fr 1fr; } .form textarea { grid-column: 1 / -1; min-height: 120px; }
+.form .full { grid-column: 1 / -1; }
+.steps { display: flex; gap: 6px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin-bottom: 16px; } .steps span { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
+.empty { color: var(--muted); padding: 18px; text-align: center; }
+.busy { opacity: .6; pointer-events: none; }
+#toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 14px; display: none; z-index: 5; }
+@media (max-width: 720px) { .form { grid-template-columns: 1fr; } .bar { grid-template-columns: 110px 1fr 30px; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Komosion CRM<small>DeepSeek · dashboard</small></div>
+  <nav id="tabs">
+    <button data-tab="overview" class="on">Overview</button>
+    <button data-tab="meetings">Meetings &amp; triggers</button>
+    <button data-tab="review">Review queue <span id="pendingBadge" class="chip pending_review" hidden></span></button>
+    <button data-tab="activity">Assistant activity</button>
+  </nav>
+  <a href="./">← Chat</a>
+</header>
+<main>
+  <section id="overview"></section>
+  <section id="meetings" hidden>
+    <h2>Meetings &amp; triggers</h2>
+    <p class="sub">A client meeting triggers DeepSeek to draft CRM updates from the transcript and that client's Pipedrive records.
+      Only meetings indexed to a client can be triggered, so drafts never fall back to whichever account is connected.</p>
+    <div class="steps"><span>1 · Meeting indexed to a client</span><span>2 · Trigger: DeepSeek drafts updates</span><span>3 · Review: approve / reject / redo</span><span>4 · Approved change plan, applied by a person</span></div>
+    <div class="card" style="margin-bottom:14px">
+      <div class="row">
+        <label>Client <select id="fClient"><option value="">All clients</option></select></label>
+        <label><input type="checkbox" id="fIndexed" checked> Client-indexed only</label>
+        <span style="flex:1"></span>
+        <button id="demoBtn">Load demo meetings</button>
+        <button class="primary" id="addBtn">Add meeting</button>
+      </div>
+      <form id="addForm" class="form" hidden style="margin-top:12px">
+        <input name="title" placeholder="Meeting title" required maxlength="200">
+        <input name="held_at" placeholder="2026-11-10 14:00" maxlength="40">
+        <input name="client_name" placeholder="Client (required to trigger)" maxlength="200">
+        <input name="client_org_id" placeholder="Pipedrive org ID" inputmode="numeric" pattern="[0-9]*">
+        <textarea name="transcript" placeholder="Paste the transcript" required maxlength="60000"></textarea>
+        <div class="row full"><button class="primary" type="submit">Save meeting</button><button type="button" id="cancelAdd">Cancel</button></div>
+      </form>
+    </div>
+    <div id="meetingList" class="list"></div>
+  </section>
+  <section id="review" hidden>
+    <h2>Review queue</h2>
+    <p class="sub">Nothing reaches Pipedrive without a decision here, and this app never writes to Pipedrive itself: an approved draft
+      becomes a change plan for a person to apply. Untick changes you don't want before approving. Redo sends your feedback back to DeepSeek for a new revision.</p>
+    <div class="row" style="margin-bottom:12px">
+      <label>Show <select id="fStatus">
+        <option value="pending_review">Waiting for review</option><option value="approved">Approved</option>
+        <option value="rejected">Rejected</option><option value="redo">Sent back for redo</option><option value="failed">Failed</option><option value="">All</option>
+      </select></label>
+    </div>
+    <div id="proposalList" class="list"></div>
+  </section>
+  <section id="activity" hidden></section>
+</main>
+<div id="toast"></div>
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const STATUS = {pending_review: "waiting for review", approved: "approved", rejected: "rejected", redo: "sent back for redo", failed: "failed"};
+let dash = null;
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, {headers: {"content-type": "application/json"}, ...opts});
+  const body = r.headers.get("content-type")?.includes("json") ? await r.json() : await r.text();
+  if (!r.ok) throw new Error(typeof body === "object" ? (typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail)) : body);
+  return body;
+}
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(toast.h); toast.h = setTimeout(() => t.style.display = "none", 3500); }
+const when = (ts) => ts ? new Date(ts * 1000).toLocaleString() : "";
+const money = (x) => x ? `$${x.toFixed(4)}` : "$0";
+const num = (x) => (x || 0).toLocaleString();
+
+function show(tab) {
+  document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
+  document.querySelectorAll("main > section").forEach((s) => s.hidden = s.id !== tab);
+  history.replaceState(null, "", "#" + tab);
+  ({overview: loadOverview, meetings: loadMeetings, review: loadProposals, activity: loadActivity})[tab]();
+}
+document.querySelectorAll("#tabs button").forEach((b) => b.onclick = () => show(b.dataset.tab));
+
+function bars(obj) {
+  const e = Object.entries(obj || {}); if (!e.length) return '<div class="empty">Nothing yet</div>';
+  const max = Math.max(...e.map(([, n]) => n));
+  return e.slice(0, 10).map(([k, n]) => `<div class="bar"><span class="name" title="${esc(k)}">${esc(k)}</span><span class="t" style="width:${Math.max(4, n / max * 100)}%"></span><span>${n}</span></div>`).join("");
+}
+
+async function loadDash() {
+  dash = await api("api/dashboard");
+  const n = dash.proposals.pending_review || 0, b = $("#pendingBadge");
+  b.hidden = !n; b.textContent = n;
+  return dash;
+}
+
+async function loadOverview() {
+  const d = await loadDash();
+  const p = d.proposals, pd = d.pipedrive || {}, g = d.google || {};
+  $("#overview").innerHTML = `
+    <h2>Overview</h2><p class="sub">Signed in as ${esc(d.user)}. Everything here is yours only.</p>
+    <div class="grid">
+      <div class="card kpi ${p.pending_review ? "hot" : ""}"><div class="n">${p.pending_review || 0}</div><div class="l">Drafts waiting for review</div></div>
+      <div class="card kpi"><div class="n">${d.changes_approved}</div><div class="l">CRM changes approved</div></div>
+      <div class="card kpi"><div class="n">${d.meetings_indexed} / ${d.meetings}</div><div class="l">Meetings indexed to a client</div></div>
+      <div class="card kpi"><div class="n">${(p.rejected || 0) + (p.redo || 0)}</div><div class="l">Drafts rejected or redone</div></div>
+      <div class="card kpi"><div class="n">${d.conversations}</div><div class="l">Chats</div></div>
+      <div class="card kpi"><div class="n">${d.runs}</div><div class="l">Assistant answers${d.errors ? ` · ${d.errors} errors` : ""}</div></div>
+      <div class="card kpi"><div class="n">${money(d.cost_usd)}</div><div class="l">DeepSeek cost (chat)</div></div>
+      <div class="card kpi"><div class="n">${d.avg_latency_ms ? (d.avg_latency_ms / 1000).toFixed(1) + "s" : "–"}</div><div class="l">Average answer time</div></div>
+    </div>
+    <div class="cols">
+      <div class="card"><h3>Connections</h3>
+        <div class="conn"><span class="dot ${d.deepseek_configured ? "on" : ""}"></span>DeepSeek<span class="s">${d.deepseek_configured ? esc(d.models.join(", ")) : "API key not set"}</span></div>
+        <div class="conn"><span class="dot ${pd.connected ? "on" : ""}"></span>Pipedrive (read-only)<span class="s">${pd.connected ? esc(pd.account?.name || pd.account?.company_name || "connected") : "not connected"}</span></div>
+        <div class="conn"><span class="dot ${g.connected ? "on" : ""}"></span>Google (read-only)<span class="s">${g.connected ? "connected" : g.available === false ? "off on this server" : "not connected"}</span></div>
+        <p class="sub" style="margin:8px 0 0">Connect or disconnect from the <a href="./">chat sidebar</a>.</p></div>
+      <div class="card"><h3>Tokens</h3>
+        <div class="conn">Input<span class="s">${num(d.prompt_tokens)}</span></div>
+        <div class="conn">of which cached<span class="s">${num(d.cache_hit_tokens)}${d.prompt_tokens ? ` (${Math.round(d.cache_hit_tokens / d.prompt_tokens * 100)}%)` : ""}</span></div>
+        <div class="conn">Output<span class="s">${num(d.completion_tokens)}</span></div></div>
+      <div class="card"><h3>Trigger pipeline</h3>
+        ${["pending_review", "approved", "rejected", "redo", "failed"].map((s) => `<div class="conn"><span class="chip ${s}">${STATUS[s]}</span><span class="s">${p[s] || 0}</span></div>`).join("")}
+        <div class="row" style="margin-top:8px"><button class="primary" onclick="show('review')">Open review queue</button><button onclick="show('meetings')">Meetings</button></div></div>
+    </div>
+    <div class="cols">
+      <div class="card"><h3>Skills DeepSeek chose</h3>${bars(d.skills_used)}</div>
+      <div class="card"><h3>Pipedrive / Google tools used</h3>${bars(d.tools_used)}</div>
+    </div>`;
+}
+
+async function loadMeetings() {
+  const client = $("#fClient").value, indexed = $("#fIndexed").checked;
+  const r = await api(`api/meetings?indexed_only=${indexed}&client=${encodeURIComponent(client)}`);
+  $("#fClient").innerHTML = `<option value="">All clients</option>` + r.clients.map((c) => `<option ${c === client ? "selected" : ""}>${esc(c)}</option>`).join("");
+  const list = $("#meetingList");
+  if (!r.meetings.length) { list.innerHTML = `<div class="card empty">No meetings${indexed ? " indexed to a client" : ""} yet. Add one, or load the demo meetings.</div>`; return; }
+  list.innerHTML = r.meetings.map((m) => {
+    const pending = m.latest?.status === "pending_review";
+    return `<div class="card item" data-id="${esc(m.id)}">
+      <div class="top"><b>${esc(m.title)}</b>
+        ${m.indexed ? `<span class="chip client">${esc(m.client_name)}${m.client_org_id ? ` · Org ${esc(m.client_org_id)}` : ""}</span>` : `<span class="chip unindexed">not client-indexed</span>`}
+        ${m.latest ? `<span class="chip ${esc(m.latest.status)}">draft r${m.latest.revision}: ${STATUS[m.latest.status] || esc(m.latest.status)}</span>` : ""}
+        ${m.source === "demo" ? `<span class="chip">demo</span>` : ""}
+        <span class="meta">${esc(m.held_at)}</span></div>
+      <details><summary>Transcript</summary><pre>${esc(m.transcript)}</pre></details>
+      ${m.indexed ? "" : `<div class="notice bad">Can't be triggered: tie it to a client first, so the draft doesn't land on the wrong account.</div>`}
+      <div class="row acts">
+        ${pending ? `<button class="primary" data-act="goreview">Review draft</button>` : `<button class="primary" data-act="trigger" ${m.indexed ? "" : "disabled"}>${m.latest ? "Trigger again" : "Run trigger"}</button>`}
+        <select data-model>${(dash?.models || []).map((x) => `<option ${x === dash.default_model ? "selected" : ""}>${esc(x)}</option>`).join("")}</select>
+        <span style="flex:1"></span><button class="bad" data-act="delete">Delete</button></div></div>`;
+  }).join("");
+}
+
+$("#meetingList").onclick = async (e) => {
+  const btn = e.target.closest("button[data-act]"); if (!btn) return;
+  const card = btn.closest(".item"), id = card.dataset.id;
+  if (btn.dataset.act === "goreview") { $("#fStatus").value = "pending_review"; return show("review"); }
+  if (btn.dataset.act === "delete") {
+    if (!confirm("Delete this meeting and its drafts?")) return;
+    await api(`api/meetings/${id}`, {method: "DELETE"}); return loadMeetings();
+  }
+  card.classList.add("busy"); btn.textContent = "Drafting… (DeepSeek is reading the transcript and Pipedrive)";
+  try {
+    const p = await api(`api/meetings/${id}/trigger`, {method: "POST", body: JSON.stringify({model: $("select[data-model]", card).value})});
+    toast(p.status === "failed" ? `Draft failed: ${p.error}` : "Draft ready for review");
+    await loadDash();
+    if (p.status !== "failed") { $("#fStatus").value = "pending_review"; return show("review"); }
+  } catch (err) { toast(err.message); }
+  loadMeetings();
+};
+$("#fClient").onchange = loadMeetings; $("#fIndexed").onchange = loadMeetings;
+$("#demoBtn").onclick = async () => { const r = await api("api/meetings/demo", {method: "POST"}); toast(`${r.added} demo meetings added (fictional)`); loadMeetings(); };
+$("#addBtn").onclick = () => { $("#addForm").hidden = false; $("#addForm [name=title]").focus(); };
+$("#cancelAdd").onclick = () => { $("#addForm").hidden = true; };
+$("#addForm").onsubmit = async (e) => {
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target));
+  f.client_org_id = f.client_org_id ? Number(f.client_org_id) : null;
+  try { await api("api/meetings", {method: "POST", body: JSON.stringify(f)}); e.target.reset(); e.target.hidden = true; toast("Meeting saved"); loadMeetings(); }
+  catch (err) { toast(err.message); }
+};
+
+async function loadProposals() {
+  const status = $("#fStatus").value;
+  const [ps] = await Promise.all([api(`api/proposals?status=${status}`), loadDash()]);
+  const list = $("#proposalList");
+  if (!ps.length) { list.innerHTML = `<div class="card empty">Nothing ${status ? STATUS[status] : "here"}. Run a trigger from <a href="#meetings" onclick="show('meetings');return false">Meetings</a>.</div>`; return; }
+  list.innerHTML = ps.map((p) => {
+    const open = p.status === "pending_review";
+    const rows = p.changes.map((c, i) => `<tr>
+      ${open ? `<td><input type="checkbox" data-keep="${i}" checked aria-label="Keep change ${i + 1}"></td>` : p.status === "approved" ? `<td>${p.kept.includes(i) ? "✓" : "–"}</td>` : ""}
+      <td>${esc(c.record)}</td><td>${esc(c.field)}</td><td>${esc(c.current || "unknown")}</td><td><b>${esc(c.proposed)}</b></td>
+      <td><i>“${esc(c.evidence)}”</i></td><td><span class="chip ${esc(c.confidence)}">${esc(c.confidence)}</span></td></tr>`).join("");
+    return `<div class="card item" data-id="${esc(p.id)}">
+      <div class="top"><b>${esc(p.meeting_title)}</b><span class="chip client">${esc(p.client_name)}${p.client_org_id ? ` · Org ${esc(p.client_org_id)}` : ""}</span>
+        <span class="chip ${esc(p.status)}">${STATUS[p.status] || esc(p.status)}</span><span class="chip">revision ${p.revision}</span>
+        <span class="meta">${esc(p.model || "")} · ${p.tool_calls} tool calls${p.latency_ms ? ` · ${(p.latency_ms / 1000).toFixed(1)}s` : ""}${p.cost_usd ? ` · ${money(p.cost_usd)}` : ""} · ${when(p.created_at)}</span></div>
+      ${p.feedback ? `<div class="notice info">Redo feedback this revision answers: ${esc(p.feedback)}</div>` : ""}
+      ${p.error ? `<div class="notice bad">${esc(p.error)}</div>` : ""}
+      <p>${esc(p.summary)}</p>
+      ${p.changes.length ? `<table><thead><tr>${open || p.status === "approved" ? "<th>Keep</th>" : ""}<th>Record</th><th>Field</th><th>Now</th><th>Proposed</th><th>Evidence</th><th>Confidence</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">No CRM changes proposed.</div>`}
+      ${p.decision_note && !open ? `<div class="notice ${p.status === "approved" ? "ok" : "info"}">${p.status === "redo" ? "Feedback" : "Reviewer note"}: ${esc(p.decision_note)}</div>` : ""}
+      ${p.status === "approved" ? `<div class="notice ok">Approved at ${when(p.reviewed_at)}. Not written to Pipedrive: this app is read-only, so apply the change plan by hand.</div>
+        <div class="row acts"><button data-act="copy">Copy change plan</button><a href="api/proposals/${esc(p.id)}/plan.txt" target="_blank">Open as text</a></div>` : ""}
+      ${open ? `<textarea data-note rows="2" placeholder="Note for approve/reject, or what to fix for a redo"></textarea>
+        <div class="row acts"><button class="ok" data-act="approve">Approve selected</button><button class="bad" data-act="reject">Reject</button>
+          <button data-act="redo">Redo with feedback</button></div>` : ""}
+      ${p.raw ? `<details><summary>DeepSeek's raw reply</summary><pre>${esc(p.raw)}</pre></details>` : ""}</div>`;
+  }).join("");
+}
+$("#fStatus").onchange = loadProposals;
+
+$("#proposalList").onclick = async (e) => {
+  const btn = e.target.closest("button[data-act]"); if (!btn) return;
+  const card = btn.closest(".item"), id = card.dataset.id, note = $("textarea[data-note]", card)?.value.trim() || "";
+  try {
+    if (btn.dataset.act === "copy") { await navigator.clipboard.writeText(await api(`api/proposals/${id}/plan.txt`)); return toast("Change plan copied"); }
+    if (btn.dataset.act === "redo") {
+      if (!note) { toast("Write what DeepSeek should fix, then press Redo"); return $("textarea[data-note]", card).focus(); }
+      card.classList.add("busy"); btn.textContent = "Redrafting…";
+      const p = await api(`api/proposals/${id}/redo`, {method: "POST", body: JSON.stringify({feedback: note})});
+      toast(p.status === "failed" ? `Redo failed: ${p.error}` : `Revision ${p.revision} ready`);
+    } else {
+      const keep = [...card.querySelectorAll("input[data-keep]:checked")].map((x) => Number(x.dataset.keep));
+      await api(`api/proposals/${id}/review`, {method: "POST", body: JSON.stringify({decision: btn.dataset.act, note, keep})});
+      toast(btn.dataset.act === "approve" ? `Approved ${keep.length} change(s)` : "Rejected");
+    }
+  } catch (err) { toast(err.message); }
+  loadProposals();
+};
+
+async function loadActivity() {
+  const d = await loadDash();
+  $("#activity").innerHTML = `<h2>Assistant activity</h2><p class="sub">Your latest chat answers. <a href="api/runs.csv">Download the full run log (CSV)</a>.</p>
+    <div class="card">${d.recent_runs.length ? `<table><thead><tr><th>When</th><th>Question</th><th>Model</th><th>Tools</th><th>Time</th><th>Cost</th><th></th></tr></thead><tbody>
+    ${d.recent_runs.map((r) => `<tr><td>${when(r.created_at)}</td><td>${esc((r.question || "").slice(0, 140))}</td><td>${esc(r.model || "")}</td><td>${r.tool_calls}</td>
+      <td>${r.latency_ms ? (r.latency_ms / 1000).toFixed(1) + "s" : ""}</td><td>${r.cost_usd ? money(r.cost_usd) : ""}</td><td>${r.error ? `<span class="chip failed" title="${esc(r.error)}">error</span>` : ""}</td></tr>`).join("")}
+    </tbody></table>` : `<div class="empty">No answers yet. Ask something in the <a href="./">chat</a>.</div>`}</div>`;
+}
+
+show(["overview", "meetings", "review", "activity"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "overview");
+</script>
+</body>
+</html>

@@ -11,7 +11,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from . import agent, config, google_oauth, oauth, pipedrive_mcp, skills, store
+from . import agent, config, google_oauth, oauth, pipedrive_mcp, skills, store, triggers
 from .google_tools import GoogleWorkspace
 from .pipedrive_mcp import PipedriveMCP
 from .pipedrive_rest import PipedriveREST
@@ -237,19 +237,9 @@ async def send(conv_id: str, body: NewMessage, user: str = Depends(current_user)
         done, error = None, None
         try:
             async with AsyncExitStack() as stack:
-                pipedrive = None
-                cred = await oauth.credential(user)
-                if cred:
-                    try:
-                        if cred["transport"] == "rest":
-                            pipedrive = make_pipedrive_rest(cred["token"], base_url=cred.get("api_domain"), bearer=cred["kind"] == "oauth")
-                            stack.push_async_callback(pipedrive.aclose)
-                        else:
-                            session = await stack.enter_async_context(open_pipedrive_session(cred["token"], kind=cred["kind"]))
-                            pipedrive = await PipedriveMCP.create(session)
-                        yield _sse({"type": "pipedrive", "tools": sorted(pipedrive.read_tools), "blocked": pipedrive.blocked})
-                    except Exception as e:  # noqa: BLE001 - answer without CRM data rather than not at all
-                        yield _sse({"type": "warning", "message": f"Pipedrive unavailable ({type(e).__name__}: {e}); answering without CRM data."})
+                pipedrive, ev = await _open_pipedrive(stack, user)
+                if ev:
+                    yield _sse(ev)
                 google = None
                 gtoken = await google_oauth.access_token(user)
                 if gtoken:
@@ -271,6 +261,174 @@ async def send(conv_id: str, body: NewMessage, user: str = Depends(current_user)
             store.add_run(conv_id, body.text, done, error, user)
 
     return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+async def _open_pipedrive(stack: AsyncExitStack, user: str) -> tuple[PipedriveMCP | PipedriveREST | None, dict | None]:
+    """The user's read-only Pipedrive for one request, plus the event that tells the browser what it got."""
+    cred = await oauth.credential(user)
+    if not cred:
+        return None, None
+    try:
+        if cred["transport"] == "rest":
+            pipedrive = make_pipedrive_rest(cred["token"], base_url=cred.get("api_domain"), bearer=cred["kind"] == "oauth")
+            stack.push_async_callback(pipedrive.aclose)
+        else:
+            session = await stack.enter_async_context(open_pipedrive_session(cred["token"], kind=cred["kind"]))
+            pipedrive = await PipedriveMCP.create(session)
+        return pipedrive, {"type": "pipedrive", "tools": sorted(pipedrive.read_tools), "blocked": pipedrive.blocked}
+    except Exception as e:  # noqa: BLE001 - answer without CRM data rather than not at all
+        return None, {"type": "warning", "message": f"Pipedrive unavailable ({type(e).__name__}: {e}); answering without CRM data."}
+
+
+# ---- dashboard + meeting triggers (draft → review: approve / reject / redo; nothing is written to Pipedrive) ----
+class NewMeeting(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    held_at: str = Field(default="", max_length=40)
+    client_name: str = Field(default="", max_length=200)
+    client_org_id: int | None = None
+    transcript: str = Field(min_length=1, max_length=60000)
+
+
+class Trigger(BaseModel):
+    model: str | None = None
+
+
+class Review(BaseModel):
+    decision: str = Field(pattern="^(approve|reject)$")
+    note: str = Field(default="", max_length=2000)
+    keep: list[int] | None = None          # approve only these changes (indexes); default all
+
+
+class Redo(BaseModel):
+    feedback: str = Field(min_length=1, max_length=4000)
+    model: str | None = None
+
+
+@app.get("/console")
+@app.get("/dashboard")  # old path, kept as an alias
+def dashboard_page(user: str = Depends(current_user)) -> FileResponse:
+    return FileResponse(STATIC / "dashboard.html")
+
+
+@app.get("/api/dashboard")
+def dashboard(user: str = Depends(current_user)) -> dict:
+    meetings = store.list_meetings(user)
+    proposals = store.list_proposals(user)
+    by_status: dict[str, int] = {}
+    for p in proposals:
+        by_status[p["status"]] = by_status.get(p["status"], 0) + 1
+    return {**store.dashboard_stats(user), "user": user, "pipedrive": oauth.status(user), "google": google_oauth.status(user),
+            "deepseek_configured": bool(config.DEEPSEEK_API_KEY), "models": config.MODELS, "default_model": config.DEFAULT_MODEL,
+            "meetings": len(meetings), "meetings_indexed": sum(1 for m in meetings if triggers.is_indexed(m)),
+            "proposals": by_status, "changes_approved": sum(len(p["kept"]) for p in proposals if p["status"] == "approved")}
+
+
+@app.get("/api/meetings")
+def meetings(client: str = "", indexed_only: bool = False, user: str = Depends(current_user)) -> dict:
+    """Meetings with their latest draft. `client` filters to one client; `indexed_only` hides meetings no one has tied
+    to a client (those can't be triggered)."""
+    latest: dict[str, dict] = {}
+    for p in store.list_proposals(user):
+        latest.setdefault(p["meeting_id"], p)
+    rows = []
+    for m in store.list_meetings(user):
+        m = {**m, "indexed": triggers.is_indexed(m)}
+        if (indexed_only and not m["indexed"]) or (client and m["client_name"].lower() != client.strip().lower()):
+            continue
+        lp = latest.get(m["id"])
+        rows.append({**m, "latest": {"id": lp["id"], "status": lp["status"], "revision": lp["revision"]} if lp else None})
+    clients = sorted({m["client_name"] for m in store.list_meetings(user) if triggers.is_indexed(m)}, key=str.lower)
+    return {"meetings": rows, "clients": clients}
+
+
+@app.post("/api/meetings")
+def add_meeting(body: NewMeeting, user: str = Depends(current_user)) -> dict:
+    return store.add_meeting(user, body.model_dump())
+
+
+@app.post("/api/meetings/demo")
+def add_demo_meetings(user: str = Depends(current_user)) -> dict:
+    have = {m["title"] for m in store.list_meetings(user)}
+    added = [store.add_meeting(user, m) for m in triggers.DEMO_MEETINGS if m["title"] not in have]
+    return {"added": len(added)}
+
+
+@app.delete("/api/meetings/{meeting_id}")
+def remove_meeting(meeting_id: str, user: str = Depends(current_user)) -> dict:
+    store.delete_meeting(meeting_id, user)
+    return {"ok": True}
+
+
+@app.post("/api/meetings/{meeting_id}/trigger")
+async def trigger_meeting(meeting_id: str, body: Trigger, user: str = Depends(current_user)) -> dict:
+    meeting = _meeting(meeting_id, user)
+    if any(p["meeting_id"] == meeting_id and p["status"] == "pending_review" for p in store.list_proposals(user)):
+        raise HTTPException(409, "this meeting already has a draft waiting for review: approve, reject or redo it")
+    return await _draft(meeting, user, _model(body.model))
+
+
+@app.get("/api/proposals")
+def proposals(status: str = "", user: str = Depends(current_user)) -> list[dict]:
+    return [p for p in store.list_proposals(user) if not status or p["status"] == status]
+
+
+@app.post("/api/proposals/{proposal_id}/review")
+def review(proposal_id: str, body: Review, user: str = Depends(current_user)) -> dict:
+    p = _pending(proposal_id, user)
+    keep = []
+    if body.decision == "approve":
+        n = len(p["changes"])
+        keep = sorted({i for i in body.keep if 0 <= i < n}) if body.keep is not None else list(range(n))
+    store.review_proposal(proposal_id, user, "approved" if body.decision == "approve" else "rejected", body.note, keep)
+    return store.get_proposal(proposal_id, user)
+
+
+@app.post("/api/proposals/{proposal_id}/redo")
+async def redo(proposal_id: str, body: Redo, user: str = Depends(current_user)) -> dict:
+    """Close this draft as "redo" (kept for the record) and draft a new revision that answers the feedback."""
+    p = _pending(proposal_id, user)
+    store.review_proposal(proposal_id, user, "redo", body.feedback)
+    return await _draft(_meeting(p["meeting_id"], user), user, _model(body.model or p["model"]), previous=p, feedback=body.feedback)
+
+
+@app.get("/api/proposals/{proposal_id}/plan.txt")
+def proposal_plan(proposal_id: str, user: str = Depends(current_user)) -> PlainTextResponse:
+    p = store.get_proposal(proposal_id, user)
+    if not p:
+        raise HTTPException(404, "draft not found")
+    return PlainTextResponse(triggers.change_plan(p, _meeting(p["meeting_id"], user)))
+
+
+def _meeting(meeting_id: str, user: str) -> dict:
+    m = store.get_meeting(meeting_id, user)
+    if not m:
+        raise HTTPException(404, "meeting not found")
+    return m
+
+
+def _pending(proposal_id: str, user: str) -> dict:
+    p = store.get_proposal(proposal_id, user)
+    if not p:
+        raise HTTPException(404, "draft not found")
+    if p["status"] != "pending_review":
+        raise HTTPException(409, f"this draft is already {p['status']}")
+    return p
+
+
+async def _draft(meeting: dict, user: str, model: str, previous: dict | None = None, feedback: str = "") -> dict:
+    if not triggers.is_indexed(meeting):
+        raise HTTPException(422, "index this meeting to a client first; un-indexed meetings are never drafted")
+    if not config.DEEPSEEK_API_KEY:
+        raise HTTPException(503, "DEEPSEEK_API_KEY is not set")
+    try:
+        async with AsyncExitStack() as stack:
+            pipedrive, _ = await _open_pipedrive(stack, user)
+            client = await stack.enter_async_context(make_llm_client())
+            fields = await triggers.draft(client, Toolbox(skills.discover(), pipedrive), model, meeting, previous, feedback)
+        status = "failed" if fields["error"] and not fields["changes"] else "pending_review"
+    except Exception as e:  # noqa: BLE001 - keep a visible record of the failed attempt
+        fields, status = {"summary": "", "changes": [], "error": f"{type(e).__name__}: {e}", "model": model}, "failed"
+    return store.add_proposal(user, {**fields, "meeting_id": meeting["id"], "status": status, "feedback": feedback})
 
 
 @app.get("/api/runs.csv")

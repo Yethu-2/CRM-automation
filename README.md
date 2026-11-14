@@ -47,6 +47,14 @@ FastAPI backend (backend/app)
 - **Trace panel** per answer: skills loaded, every tool call (arguments, result, time), input / cached / output
   tokens, cost (once `prices.json` is filled in) and total time.
 - **Run log**: every answer is a row in SQLite; *Download run log (CSV)* in the sidebar.
+- **Console** (`/console`, also reachable as `/dashboard`; linked in the sidebar): overview (connections, tokens, cost, skills and tools used),
+  meetings, the review queue and recent answers, per user.
+- **Meeting triggers** (agreed with Truc, 3 Nov 2026; `triggers.py`): a meeting transcript, indexed to a client (name, plus
+  the Pipedrive org ID when known), triggers DeepSeek to draft CRM updates from the transcript and that client's
+  Pipedrive records. Each draft waits in the review queue: **approve** (all or some changes), **reject**, or **redo** with
+  feedback (a new revision; the old one is kept). Meetings not indexed to a client are never drafted, so drafts can't
+  fall back to whichever account is connected. Approving never writes to Pipedrive: it produces a change plan a person
+  applies. *Load demo meetings* adds three fictional meetings for demos. Transcripts are pasted for now.
 
 Not in v1 (designed for, not built): a case runner for the Phase 2 test cases with the five acceptance gates, client-memory tools over the
 Phase 2 Supabase schema, running the skills' Python scripts.
